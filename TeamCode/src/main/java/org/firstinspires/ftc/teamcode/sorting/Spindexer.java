@@ -7,16 +7,16 @@ import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 
 public class Spindexer {
     private final Servo spindexerServo;
-    private char[] tracking = {'_', '_', '_'}; // '_' = empty, 'P' = purple, 'G' = green
+    private char[] filled = {'_', '_', '_'}; // '_' = empty, 'P' = purple, 'G' = green
     private int intakeIndex = 0; // Index of the current position (0, 1, or 2)
 
     // values below are placeholders
-    private double shoot0 = 0.5; // Position for index 0
-    private double shoot1 = 0.8333; // Position for index 1
-    private double shoot2 = 0.1667; // Position for index 2
-    private double intake0 = 0.0;  // Position for shooting index 0 ball
-    private double intake1 = 0.3333;  // Position for shooting index 1 ball
-    private double intake2 = 0.6667;  // Position for shooting index 2 ball
+    private final double shoot0 = 0.5; // Position for index 0
+    private final double shoot1 = 0.8333; // Position for index 1
+    private final double shoot2 = 0.1667; // Position for index 2
+    private final double intake0 = 0.0;  // Position for shooting index 0 ball
+    private final double intake1 = 0.3333;  // Position for shooting index 1 ball
+    private final double intake2 = 0.6667;  // Position for shooting index 2 ball
 
 
     public Spindexer(HardwareMap hardwareMap, String servoName) {
@@ -52,6 +52,10 @@ public class Spindexer {
         setIntakeIndex(intakeIndex);
     }
 
+    public void setColorAtPos(char color) {
+        filled[intakeIndex] = color;
+    }
+
     public void setShootIndex(int index){
         index %= 3;
         switch (index) {
@@ -81,6 +85,21 @@ public class Spindexer {
         return 2;
     }
 
+    public boolean isFull(){
+        for (char c : filled){
+            if (c == '_'){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void clearTracking(){
+        filled[0] = '_';
+        filled[1] = '_';
+        filled[2] = '_';
+    }
+
 
     public int getIntakeIndex(){
         return intakeIndex;
@@ -89,6 +108,13 @@ public class Spindexer {
     public double getPosition() {
         return spindexerServo.getPosition();
     }
+
+    public char[] getFilled(){
+        return filled;
+    }
+
+
+    /* Debugging */
 
     public void incrementPosition(double amount) {
         double newPosition = Math.min(1.0, spindexerServo.getPosition() + amount);

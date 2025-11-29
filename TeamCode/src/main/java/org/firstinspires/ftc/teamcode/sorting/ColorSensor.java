@@ -29,19 +29,19 @@ public class ColorSensor {
     public char detection() {
         if (getHueDegrees() > greenThreshold) return 'G';
         else if (getHueDegrees() > purpleThreshold) return 'P';
-        else return '_';
+        else return '#';
     }
 
     public char detection(float greenThreshold, float purpleThreshold){
         if (getHueDegrees() > greenThreshold) return 'G';
         else if (getHueDegrees() > purpleThreshold) return 'P';
-        else return '_';
+        else return '#';
     }
 
     public char detection(float hue){
         if (hue > greenThreshold) return 'G';
         else if (hue > purpleThreshold) return 'P';
-        else return '_';
+        else return '#';
     }
 
 

@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Shooter;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
+import com.qualcomm.robotcore.hardware.DigitalChannel;
 
 
 @Configurable
@@ -33,39 +34,44 @@ public class BlueTeleOp extends OpMode {
     private Shooter shooter;
     private ColorSensor colorSensor;
 
-    private TouchSensor touchSensor;
+    private DigitalChannel distanceSensor;
 
-    //private DistanceSensor distanceSensor;
+
+
     private Spindexer spindexer;
     private boolean intakeOn = false;
     private boolean outtakeOn = false;
-    private boolean shooterOn = false;
     private char detectedColor = '_';
     private boolean detected = false;
     private int intakeIndex = 0;
     private int shootIndex = 0;
 
-    private int touchSensorTest = 0;
-
-    public char[] filledIndex = {'_', '_', '_'};
 
     // 3-shot auto volley system
     private boolean threeShotActive = false;
-    private ElapsedTime threeShotTimer = new ElapsedTime();
+    private final ElapsedTime threeShotTimer = new ElapsedTime();
+    private final ElapsedTime detectedTimer = new ElapsedTime();
+    private static final int SHOOT_DELAY = 400;
+    private static final int KICK_DELAY = 300;
+    private static final int NORMAL_DELAY = 250;
+    private static final int FULL_CYCLE = SHOOT_DELAY + KICK_DELAY + NORMAL_DELAY;
+
+    private final int DETECTED_DELAY = 300;
 
     private final double offset = Math.toRadians(180.0); // Alliance POV offset: 180 = Blue, 0 = Red
 
     /* Debugging stuff */
     private int detectedCount = 0;
     private String colorLog;
+
+
     private boolean toggle(boolean currentState, Runnable enableAction, Runnable disableAction) {
         if (!currentState) enableAction.run(); else disableAction.run();
         return !currentState;
     }
 
     public void kickAndClearIndex() {
-        int index = spindexer.getShootIndex();   // which chamber is aligned to shooter
-        filledIndex[index] = '_';                // clear that chamber
+        spindexer.setColorAtPos('_');
         kickerServo.kick();
     }
 
@@ -79,10 +85,9 @@ public class BlueTeleOp extends OpMode {
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         shooter = new Shooter(hardwareMap, "shooterMotor", false);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
-
-        //distanceSensor = new DistanceSensor(hardwareMap, "distanceSensor");
         spindexer = new Spindexer(hardwareMap, "spindexer");
-        touchSensor = hardwareMap.get(TouchSensor.class, "touchSensor");
+        distanceSensor = hardwareMap.get(DigitalChannel.class, "distanceSensor");
+        distanceSensor.setMode(DigitalChannel.Mode.INPUT);
 
         spindexer.setIntakeIndex(intakeIndex);
 
@@ -101,11 +106,11 @@ public class BlueTeleOp extends OpMode {
         shooter.on();
         // Field-centric drive with alliance offset, suppressed if locked
         if (gamepad1.left_trigger > 0.5) {
-            lockMode.lockPosition();
+//            lockMode.lockPosition();
         }
-        else {
-            lockMode.unlockPosition();
+        else{
 
+//            lockMode.unlockPosition();
             // Start teleop drive
             follower.setTeleOpDrive(
                     -gamepad1.left_stick_y,
@@ -116,9 +121,7 @@ public class BlueTeleOp extends OpMode {
             );
         }
 
-
-
-
+        detected = distanceSensor.getState();
 
 
 
@@ -130,12 +133,23 @@ public class BlueTeleOp extends OpMode {
             outtakeOn = false;
         }
         else if (gamepad1.bWasPressed()){
-            outtakeOn = toggle(outtakeOn,
-                    intake::spinOuttake,
-                    intake::stop
-            );
-            intakeOn = false;
+            new Thread(() -> {
+                outtakeOn = toggle(outtakeOn,
+                        intake::spinOuttake,
+                        intake::stop
+                );
+                intakeOn = false;
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {}
+                intakeOn = toggle(intakeOn,
+                        intake::spinIntake,
+                        intake::stop
+                );
+                outtakeOn = false;
+            }).start();
         }
+
 
         if (gamepad1.leftBumperWasPressed()) {
             threeShotActive = true;
@@ -144,31 +158,32 @@ public class BlueTeleOp extends OpMode {
 
 
         if (threeShotActive) {
-//            lockMode.lockPosition(); // lock the robot before shooting
 //            aim at function to aim before shooting
             // timing for ball shots
             double t = threeShotTimer.milliseconds();
 
+
+            int fd = spindexer.getShootIndex() == 2 ? SHOOT_DELAY : 0;
+            telemetryM.debug("fd", fd);
             // Shooting sequence for ball 1
-            if (t > 0   && t < 500)   spindexer.setShootIndex(0);
-            if (t > 500 && t < 1000)  kickAndClearIndex();
-            if (t > 1000 && t < 1500) kickerServo.normal();
+            if (t > 0 && t < SHOOT_DELAY - fd) spindexer.setShootIndex(2);
+            if (t > SHOOT_DELAY - fd && t < SHOOT_DELAY + KICK_DELAY - fd)  kickAndClearIndex();
+            if (t > SHOOT_DELAY + KICK_DELAY - fd && t < FULL_CYCLE - fd) kickerServo.normal();
 
             // Shooting sequence for ball 2
-            if (t > 1500 && t < 2000) spindexer.setShootIndex(1);
-            if (t > 2000 && t < 2500) kickAndClearIndex();
-            if (t > 2500 && t < 3000) kickerServo.normal();
+            if (t > FULL_CYCLE - fd && t < FULL_CYCLE + SHOOT_DELAY - fd) spindexer.setShootIndex(0);
+            if (t > FULL_CYCLE + SHOOT_DELAY - fd && t < 2*FULL_CYCLE - NORMAL_DELAY - fd) kickAndClearIndex();
+            if (t > 2*FULL_CYCLE - NORMAL_DELAY - fd && t < 2*FULL_CYCLE - fd) kickerServo.normal();
 
             // Shooting sequence for ball 3
-            if (t > 3000 && t < 3500) spindexer.setShootIndex(2);
-            if (t > 3500 && t < 4000) kickAndClearIndex();
-            if (t > 4000 && t < 4500) kickerServo.normal();
+            if (t > 2*FULL_CYCLE - fd && t < 2*FULL_CYCLE + SHOOT_DELAY - fd) spindexer.setShootIndex(1);
+            if (t > 2*FULL_CYCLE + SHOOT_DELAY - fd&& t < 3*FULL_CYCLE - NORMAL_DELAY - fd) kickAndClearIndex();
+            if (t > 3*FULL_CYCLE - NORMAL_DELAY - fd&& t < 3*FULL_CYCLE - fd) kickerServo.normal();
 
             // turn off shooting sequence
-            if (t > 4500) {
-                intakeIndex=0;
+            if (t > 3*FULL_CYCLE - fd) {
+                intakeIndex = 0;
                 spindexer.setIntakeIndex(intakeIndex);
-//                lockMode.unlockPosition(); // unlock the robot after shooting
                 threeShotActive = false;
             }
         }
@@ -185,8 +200,21 @@ public class BlueTeleOp extends OpMode {
 
 
 
-        if (gamepad1.rightBumperWasPressed() || touchSensor.isPressed()){
+        detectedColor = colorSensor.detection();
+
+        if ((detected && !spindexer.isFull()  &&  detectedTimer.milliseconds() > DETECTED_DELAY) && !threeShotActive){
+            spindexer.setColorAtPos(detectedColor);
+            if (!spindexer.isFull()) spindexer.advanceIntake();
+            else spindexer.setShootIndex(2);
+            detectedCount++;
+            detectedTimer.reset();
+        }
+
+        else if (gamepad1.rightBumperWasPressed()){
+            spindexer.setColorAtPos(detectedColor);
             spindexer.advanceIntake();
+            detectedCount++;
+            detectedTimer.reset();
         }
 
 
@@ -201,78 +229,19 @@ public class BlueTeleOp extends OpMode {
             spindexer.setShootIndex(shootIndex);
         }
 
-        detectedColor = colorSensor.detection();
 
-        if (detectedColor != '_'){
-            colorLog += detectedColor;
-            filledIndex[spindexer.getIntakeIndex()] = detectedColor;
-        }
-
-//        if(!threeShotActive){
-//            if(filledIndex[0] == '_'){
-//                spindexer.setIntakeIndex(0);
-//            } else if (filledIndex[1] == '_') {
-//                spindexer.setIntakeIndex(1);
-//            } else if(filledIndex[2] == '_'){
-//                spindexer.setIntakeIndex(2);
-//            }
-//        }
-
-        detected = ((detectedColor == 'P') || (detectedColor == 'G'));
-
-//        if (detected){
-//            detectedCount++;
-//        }
-
-        //intake 3 balls
-        if (gamepad1.leftStickButtonWasPressed()) {
-            new Thread(() -> {
-                ElapsedTime timer = new ElapsedTime();
-                ElapsedTime settle = new ElapsedTime();
-
-                for (int i = 0; i < 3; i++) {
-
-                    spindexer.setIntakeIndex(i);
-                    detected = false;
-                    timer.reset();
-
-                    while (!detected) {
-                        if (timer.milliseconds() >= 10) {
-                            detectedColor = colorSensor.detection();
-                            detected = (detectedColor == 'P' || detectedColor == 'G');
-                            timer.reset();
-                        }
-                    }
-
-                    settle.reset();
-                    while (settle.milliseconds() < 100) {}
-
-                    detected = false;
-                }
-
-            }).start();
-        }
-
-
-
-
-
-        telemetryM.debug("Touch Sensor Count", touchSensorTest);
         // Update telemetry
-        telemetryM.debug("Deteced Color: ", detectedColor);
-
-
-
-
-        telemetryM.debug("index 0", filledIndex[0]);
-        telemetryM.debug("index 1", filledIndex[1]);
-        telemetryM.debug("index 2", filledIndex[2]);
+        telemetryM.debug("Detected Color: ", detectedColor);
 
 
         //telemetryM.debug("Detected Object: ", detected);
+        char[] filled = spindexer.getFilled();
         telemetryM.debug("Detection Log: ", colorLog);
         telemetryM.debug("Detected Count: ", detectedCount);
         telemetryM.debug("Spindexer Position: ", spindexer.getPosition());
+        telemetryM.debug("index 0", filled[0]);
+        telemetryM.debug("index 1", filled[1]);
+        telemetryM.debug("index 2", filled[2]);
         telemetryM.update(telemetry);
     }
 }
