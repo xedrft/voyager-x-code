@@ -52,7 +52,10 @@ public class Spindexer {
         setIntakeIndex(intakeIndex);
     }
 
-    public void setColorAtPos(char color) {
+    public void setColorAtPos(char color, int index) {
+        filled[index] = color;
+    }
+    public void setColorAtPos(char color){
         filled[intakeIndex] = color;
     }
 

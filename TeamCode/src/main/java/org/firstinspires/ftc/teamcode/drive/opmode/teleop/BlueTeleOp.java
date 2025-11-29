@@ -44,7 +44,7 @@ public class BlueTeleOp extends OpMode {
     private char detectedColor = '_';
     private boolean detected = false;
     private int intakeIndex = 0;
-    private int shootIndex = 0;
+    private boolean rightPos = false;
 
 
     // 3-shot auto volley system
@@ -70,8 +70,8 @@ public class BlueTeleOp extends OpMode {
         return !currentState;
     }
 
-    public void kickAndClearIndex() {
-        spindexer.setColorAtPos('_');
+    public void kickAndClearIndex(int index) {
+        spindexer.setColorAtPos('_', index);
         kickerServo.kick();
     }
 
@@ -156,28 +156,26 @@ public class BlueTeleOp extends OpMode {
             threeShotTimer.reset();
         }
 
-
+        int fd = 0;
         if (threeShotActive) {
 //            aim at function to aim before shooting
             // timing for ball shots
             double t = threeShotTimer.milliseconds();
 
-
-            int fd = spindexer.getShootIndex() == 2 ? SHOOT_DELAY : 0;
-            telemetryM.debug("fd", fd);
+            fd = rightPos ? SHOOT_DELAY : 0;
             // Shooting sequence for ball 1
             if (t > 0 && t < SHOOT_DELAY - fd) spindexer.setShootIndex(2);
-            if (t > SHOOT_DELAY - fd && t < SHOOT_DELAY + KICK_DELAY - fd)  kickAndClearIndex();
+            if (t > SHOOT_DELAY - fd && t < SHOOT_DELAY + KICK_DELAY - fd)  kickAndClearIndex(2);
             if (t > SHOOT_DELAY + KICK_DELAY - fd && t < FULL_CYCLE - fd) kickerServo.normal();
 
             // Shooting sequence for ball 2
             if (t > FULL_CYCLE - fd && t < FULL_CYCLE + SHOOT_DELAY - fd) spindexer.setShootIndex(0);
-            if (t > FULL_CYCLE + SHOOT_DELAY - fd && t < 2*FULL_CYCLE - NORMAL_DELAY - fd) kickAndClearIndex();
+            if (t > FULL_CYCLE + SHOOT_DELAY - fd && t < 2*FULL_CYCLE - NORMAL_DELAY - fd) kickAndClearIndex(0);
             if (t > 2*FULL_CYCLE - NORMAL_DELAY - fd && t < 2*FULL_CYCLE - fd) kickerServo.normal();
 
             // Shooting sequence for ball 3
             if (t > 2*FULL_CYCLE - fd && t < 2*FULL_CYCLE + SHOOT_DELAY - fd) spindexer.setShootIndex(1);
-            if (t > 2*FULL_CYCLE + SHOOT_DELAY - fd&& t < 3*FULL_CYCLE - NORMAL_DELAY - fd) kickAndClearIndex();
+            if (t > 2*FULL_CYCLE + SHOOT_DELAY - fd&& t < 3*FULL_CYCLE - NORMAL_DELAY - fd) kickAndClearIndex(1);
             if (t > 3*FULL_CYCLE - NORMAL_DELAY - fd&& t < 3*FULL_CYCLE - fd) kickerServo.normal();
 
             // turn off shooting sequence
@@ -185,6 +183,7 @@ public class BlueTeleOp extends OpMode {
                 intakeIndex = 0;
                 spindexer.setIntakeIndex(intakeIndex);
                 threeShotActive = false;
+                rightPos = false;
             }
         }
 
@@ -192,7 +191,7 @@ public class BlueTeleOp extends OpMode {
 
 
         if (gamepad1.xWasPressed()){
-            kickAndClearIndex();
+            kickerServo.kick();
         }
         else if (gamepad1.yWasPressed()){
             kickerServo.normal();
@@ -204,8 +203,14 @@ public class BlueTeleOp extends OpMode {
 
         if ((detected && !spindexer.isFull()  &&  detectedTimer.milliseconds() > DETECTED_DELAY) && !threeShotActive){
             spindexer.setColorAtPos(detectedColor);
-            if (!spindexer.isFull()) spindexer.advanceIntake();
-            else spindexer.setShootIndex(2);
+            if (!spindexer.isFull()){
+                spindexer.advanceIntake();
+                rightPos = false;
+            }
+            else{
+                spindexer.setShootIndex(2);
+                rightPos = true;
+            }
             detectedCount++;
             detectedTimer.reset();
         }
@@ -213,21 +218,11 @@ public class BlueTeleOp extends OpMode {
         else if (gamepad1.rightBumperWasPressed()){
             spindexer.setColorAtPos(detectedColor);
             spindexer.advanceIntake();
+            rightPos = false;
             detectedCount++;
             detectedTimer.reset();
         }
 
-
-
-        if (gamepad1.dpadUpWasPressed()){
-            shootIndex = (shootIndex + 1) % 3;
-            spindexer.setShootIndex(shootIndex);
-        }
-
-        if (gamepad1.dpadDownWasPressed()) {
-            shootIndex = (shootIndex + 2) % 3; // equivalent to (index - 1 + 3) % 3
-            spindexer.setShootIndex(shootIndex);
-        }
 
 
         // Update telemetry
@@ -242,6 +237,8 @@ public class BlueTeleOp extends OpMode {
         telemetryM.debug("index 0", filled[0]);
         telemetryM.debug("index 1", filled[1]);
         telemetryM.debug("index 2", filled[2]);
+        telemetryM.debug("fd", fd);
+
         telemetryM.update(telemetry);
     }
 }
