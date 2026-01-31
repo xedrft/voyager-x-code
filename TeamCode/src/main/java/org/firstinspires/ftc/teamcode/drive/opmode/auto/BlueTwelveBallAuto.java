@@ -286,8 +286,13 @@ public class BlueTwelveBallAuto extends OpMode {
 
             case 3:
                 if (!follower.isBusy()){
-                    follower.followPath(paths.Overflow);
-                    setState(4);
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        follower.followPath(paths.Overflow);
+                        setState(4);
+                    }
                 }
 
                 // ------------------------------------------------------------
