@@ -85,6 +85,14 @@ public class BlueTeleOp extends OpMode {
 
     private static int CloseCap = 2600;
 
+    // --- shoot-while-moving lead compensation ---
+    /** Toggle for shoot-while-moving lead adjustment. */
+    private boolean shootWhileMoving = true;
+
+    /** Tune: flat RPM boost when robot speed exceeds MOVING_SPEED_THRESHOLD. */
+    private static final double MOVING_RPM_BOOST = 100.0;
+    /** Tune: minimum speed (ips) to be considered "moving". */
+    private static final double MOVING_SPEED_THRESHOLD = 3.0;
 
     @Override
     public void init() {
@@ -244,10 +252,6 @@ public class BlueTeleOp extends OpMode {
             startOuttakeRoutine();
         }
 
-        turret.trackTarget(follower.getPose(), targetPose, offset_turret);
-
-
-
         if(gamepad1.dpadDownWasPressed()){
             rpmCap = !rpmCap;
             gamepad1.rumble(200);
@@ -264,21 +268,37 @@ public class BlueTeleOp extends OpMode {
         }
 
 
-        double distance = Math.sqrt((targetPose.getX() - follower.getPose().getX())
-                * (targetPose.getX() - follower.getPose().getX())
-                + (targetPose.getY() - follower.getPose().getY())
-                * (targetPose.getY() - follower.getPose().getY()));
+        double distance = Math.sqrt((targetPose.getX() - currentPose.getX())
+                * (targetPose.getX() - currentPose.getX())
+                + (targetPose.getY() - currentPose.getY())
+                * (targetPose.getY() - currentPose.getY()));
 
-        currentRPM = 0.0151257 * distance * distance
-                + 10.03881 * distance
+        // Turret always aims at the real goal
+        turret.trackTarget(currentPose, targetPose, offset_turret);
+
+        // --- shoot-while-moving: adjust RPM based on lead-compensated distance ---
+        double aimDistance;
+        if (shootWhileMoving) {
+            Pose aimPose = getLeadAdjustedTarget(currentPose, targetPose, distance);
+            aimDistance = Math.sqrt((aimPose.getX() - currentPose.getX())
+                    * (aimPose.getX() - currentPose.getX())
+                    + (aimPose.getY() - currentPose.getY())
+                    * (aimPose.getY() - currentPose.getY()));
+        } else {
+            aimDistance = distance;
+        }
+
+        currentRPM = 0.0151257 * aimDistance * aimDistance
+                + 10.03881 * aimDistance
                 + 1382.4428;
 
-        // Velocity compensation:
-        // - if moving toward goal (radialVelocityIps negative) => decrease RPM
-        // - if moving away (radialVelocityIps positive) => increase RPM
-        double velComp = RPM_PER_IPS * radialVelocityIps;
-        velComp = Math.max(-MAX_RPM_VEL_COMP, Math.min(MAX_RPM_VEL_COMP, velComp));
-        currentRPM += velComp;
+        // Flat RPM boost when robot is moving to compensate for energy loss
+        double robotSpeed = Math.hypot(
+                follower.getVelocity().getXComponent(),
+                follower.getVelocity().getYComponent());
+        if (robotSpeed > MOVING_SPEED_THRESHOLD) {
+            currentRPM += MOVING_RPM_BOOST;
+        }
 
         currentRPM = (currentRPM > CloseCap && rpmCap) ? CloseCap : currentRPM;
 
@@ -297,10 +317,13 @@ public class BlueTeleOp extends OpMode {
         turret.on(); // Update velocity
 
 
-        telemetry.addData("Calculated Distance (in)", distance);
-        telemetry.addData("Radial Vel (ips)", radialVelocityIps);
-        telemetry.addData("RPM Vel Comp", velComp);
-        telemetry.addData("Current target RPM:", currentRPM);
+        telemetry.addData("Goal Distance (in)", String.format(java.util.Locale.US, "%.1f", distance));
+        telemetry.addData("Aim Distance (in)", String.format(java.util.Locale.US, "%.1f", aimDistance));
+        telemetry.addData("Distance Delta (in)", String.format(java.util.Locale.US, "%.2f", aimDistance - distance));
+        telemetry.addData("Est. Air Time (s)", String.format(java.util.Locale.US, "%.3f", estimateAirTime(distance)));
+        telemetry.addData("Robot Speed (ips)", String.format(java.util.Locale.US, "%.1f", robotSpeed));
+        telemetry.addData("RPM Boost Active", robotSpeed > MOVING_SPEED_THRESHOLD);
+        telemetry.addData("Current target RPM:", String.format(java.util.Locale.US, "%.0f", currentRPM));
 
         if (gamepad1.leftStickButtonWasPressed()){
             startSingleOuttake('P');
@@ -356,6 +379,7 @@ public class BlueTeleOp extends OpMode {
         telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
+        telemetry.addData("Turret Current Error", String.format(java.util.Locale.US, "%.2f", turret.getCurrentError()));
         telemetry.addData("Outtake In Progress", outtakeInProgress);
         telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
         char[] filled = spindexer.getFilled();
@@ -365,7 +389,6 @@ public class BlueTeleOp extends OpMode {
 
     private void startOuttakeRoutine() {
         outtakeInProgress = true;
-        isLocked = true;
         outtakeAdvanceCount = 0;
         outtakeTimer.reset();
         lastAdvanceTime = 0;
@@ -438,6 +461,44 @@ public class BlueTeleOp extends OpMode {
                 }
             }
         }
+    }
+
+    /**
+     * Estimates the ball air time (in seconds) based on distance to the goal.
+     * TODO: Replace with actual regression equation from collected data.
+     *
+     * @param distanceInches distance from robot to goal in inches
+     * @return estimated air time in seconds
+     */
+    private double estimateAirTime(double distanceInches) {
+        // TODO: Replace with regression equation, e.g.:
+        // return a * distanceInches * distanceInches + b * distanceInches + c;
+        return -0.0000100511*distanceInches*distanceInches+0.00572639*distanceInches+0.694903; // placeholder constant (seconds)
+    }
+
+    /**
+     * Computes a lead-adjusted target pose to aim at so the ball arrives at the
+     * actual goal despite the robot moving while the ball is in the air.
+     *
+     * Formula: aimTarget = actualGoal - (robotVelocity × airTime)
+     *
+     * @param robotPose   current robot pose
+     * @param goalPose    actual goal position
+     * @param distInches  distance from robot to goal
+     * @return adjusted aim pose
+     */
+    private Pose getLeadAdjustedTarget(Pose robotPose, Pose goalPose, double distInches) {
+        double airTime = estimateAirTime(distInches);
+
+        // Get robot velocity vector from the follower (inches/sec)
+        double vx = follower.getVelocity().getXComponent();
+        double vy = follower.getVelocity().getYComponent();
+
+        // Adjusted target = actual goal - (velocity × air time)
+        double adjustedX = goalPose.getX() - (vx * airTime);
+        double adjustedY = goalPose.getY() - (vy * airTime);
+
+        return new Pose(adjustedX, adjustedY, goalPose.getHeading());
     }
 }
 

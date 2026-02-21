@@ -23,6 +23,9 @@ public class Turret {
     private double farRPM = 3000.0;
     private double transferPower = 1;
 
+    private static final double ANALOG_MAX_VOLTAGE = 3.3;
+    private double lastCommandedAngle = 0.0;
+
     // PID Coefficients for trackTarget
     public static double Kp = 0.02;
     public static double Ki = 0.0;
@@ -127,8 +130,33 @@ public class Turret {
     }
 
     public void goToPosition(double targetAngleDegrees) {
-        turretServo.setPosition(1 - 4*targetAngleDegrees / 1800);
+        lastCommandedAngle = targetAngleDegrees;
+        double mapped = targetAngleDegrees * (255.0 / 360.0);
+        turretServo.setPosition(1 - (mapped / 255.0));
     }
+
+    public double getEncoderAngle() {
+        double v = turretEncoder.getVoltage();
+        if (v < 0) v = 0;
+        if (v > ANALOG_MAX_VOLTAGE) v = ANALOG_MAX_VOLTAGE;
+        return (v / ANALOG_MAX_VOLTAGE) * 360.0;
+    }
+
+    public double getEncoderOffset() {
+        double diff = lastCommandedAngle - getEncoderAngle();
+        while (diff > 180) diff -= 360;
+        while (diff < -180) diff += 360;
+        return diff;
+    }
+
+    public double getCurrentError() {
+        return getEncoderOffset();
+    }
+
+    public void turretServo(double position) {
+        turretServo.setPosition(position);
+    }
+
 
     private double normalizeAngle(double angle) {
         angle = angle % 360;
