@@ -255,10 +255,10 @@ public class BlueTeleOp extends OpMode {
 
         if (!rpmCap){ //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 600;
-            offset_turret = -7;
+            offset_turret = -3;
         }
         else { //if there IS an RPM cap
-            OUTTAKE_DELAY_MS = 300;
+            OUTTAKE_DELAY_MS = 150;
             offset_turret = 0;
 
         }
