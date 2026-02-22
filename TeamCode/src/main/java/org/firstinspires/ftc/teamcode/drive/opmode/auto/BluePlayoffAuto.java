@@ -433,7 +433,7 @@ public class BluePlayoffAuto extends OpMode {
                                     new Pose(144 - 86.727, 69.932),
                                     new Pose(144 - 134.000, 60.000)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(213-90+32))
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180-33))
                     .build();
 
             ShootGateIntake = follower.pathBuilder().addPath(
@@ -442,7 +442,7 @@ public class BluePlayoffAuto extends OpMode {
                                     new Pose(144 - 75.000, 69.932),
                                     new Pose(144 - 104.346, 103.912)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(213-90+32), Math.toRadians(180))
+                    ).setLinearHeadingInterpolation(Math.toRadians(180-33), Math.toRadians(180))
                     .build();
 
             Pickup2 = follower.pathBuilder().addPath(

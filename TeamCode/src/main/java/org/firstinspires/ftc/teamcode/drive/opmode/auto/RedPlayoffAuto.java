@@ -42,11 +42,11 @@ public class RedPlayoffAuto extends OpMode {
 
     // -------------------- Config (tune in Panels) --------------------
     public static double SHOOT_DEG = 43.5;
-    public static double SHOOT_RPM = 2125;
+    public static double SHOOT_RPM = 2100;
     public static double PARK_SPEED = 1.0;
 
     // Outtake cadence
-    public static double OUTTAKE_DELAY_MS = 400;
+    public static double OUTTAKE_DELAY_MS = 350;
     private double targetAngle = SHOOT_DEG;
 
     // -------------------- State machine --------------------
@@ -56,7 +56,7 @@ public class RedPlayoffAuto extends OpMode {
 
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
-    private static final long SETTLE_DELAY_MS = 250;
+    private static final long SETTLE_DELAY_MS = 100;
     private static final long GATE_WAIT_MS = 4000;
 
     private void setState(int s) {
@@ -249,7 +249,7 @@ public class RedPlayoffAuto extends OpMode {
                 break;
 
             case 6:
-                follower.followPath(paths.GateIntake);
+                follower.followPath(paths.GateIntake, 1.0, true);
                 setState(7);
                 break;
 
@@ -276,7 +276,7 @@ public class RedPlayoffAuto extends OpMode {
                 break;
 
             case 9:
-                follower.followPath(paths.GateIntake);
+                follower.followPath(paths.GateIntake, 1.0, true);
                 setState(10);
                 break;
 
@@ -405,14 +405,14 @@ public class RedPlayoffAuto extends OpMode {
                                     new Pose(110.000, 110.000),
                                     new Pose(88.149, 77.811),
                                     new Pose(76.078, 54.808),
-                                    new Pose(135.307, 59.578)
+                                    new Pose(135.307, 57)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
             ReleaseGate = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(135.307, 59.578),
+                                    new Pose(135.307, 57),
                                     new Pose(117.743, 59.268),
                                     new Pose(128.422, 64.146)
                             )
@@ -422,7 +422,7 @@ public class RedPlayoffAuto extends OpMode {
             Shoot1 = follower.pathBuilder().addPath(
                             new BezierCurve(
                                     new Pose(128.422, 64.146),
-                                    new Pose(91.583, 66.836),
+                                    new Pose(87, 66),
                                     new Pose(104.346, 103.912)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
@@ -432,32 +432,32 @@ public class RedPlayoffAuto extends OpMode {
                             new BezierCurve(
                                     new Pose(104.346, 103.912),
                                     new Pose(86.727, 69.932),
-                                    new Pose(133, 60)
+                                    new Pose(134, 59.5)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(33))
+                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(31))
                     .build();
 
             ShootGateIntake = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(133, 60),
+                                    new Pose(134, 59.5),
                                     new Pose(75, 69.932),
                                     new Pose(104.346, 103.912)
                             )
-                    ).setLinearHeadingInterpolation(Math.toRadians(33), Math.toRadians(0))
+                    ).setLinearHeadingInterpolation(Math.toRadians(31), Math.toRadians(0))
                     .build();
 
             Pickup2 = follower.pathBuilder().addPath(
                             new BezierCurve(
                                     new Pose(104.346, 103.912),
-                                    new Pose(95.893, 79.580),
-                                    new Pose(129.386, 84.373)
+                                    new Pose(93.587, 75.737),
+                                    new Pose(129.386, 83)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
             Shoot2 = follower.pathBuilder().addPath(
                             new BezierLine(
-                                    new Pose(129.386, 84.373),
+                                    new Pose(129.386, 83),
                                     new Pose(104.346, 103.912)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))

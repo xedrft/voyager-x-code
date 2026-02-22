@@ -51,7 +51,7 @@ public class RedTeleOp extends OpMode {
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static double OUTTAKE_DELAY_MS = 150;
+    private static double OUTTAKE_DELAY_MS = 300;
 
     private int spinInterval = 0;
     private boolean goingToPosition = false;
@@ -261,7 +261,7 @@ public class RedTeleOp extends OpMode {
             offset_turret = 3;
         }
         else { //if there IS an RPM cap
-            OUTTAKE_DELAY_MS = 150;
+            OUTTAKE_DELAY_MS = 300;
             offset_turret = 0;
 
         }
