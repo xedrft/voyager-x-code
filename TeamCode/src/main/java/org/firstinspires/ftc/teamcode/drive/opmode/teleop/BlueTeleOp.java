@@ -1,11 +1,16 @@
 package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
+import com.bylazar.lights.Headlight;
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.PathChain;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DigitalChannel;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
@@ -25,6 +30,10 @@ public class BlueTeleOp extends OpMode {
     private static final Pose startingPose = PoseStorage.currentPose;
 
     private BarIntake barIntake;
+
+    private Servo ledHeadlight;
+    private Servo ledHeadlight2;
+
     private Spindexer spindexer;
     private int offset_turret = 0;
     private KickerServo kickerServo;
@@ -45,9 +54,11 @@ public class BlueTeleOp extends OpMode {
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static double OUTTAKE_DELAY_MS = 300;
+    private static double OUTTAKE_DELAY_MS = 150;
 
     private int spinInterval = 0;
+    private boolean goingToPosition = false;
+    private static Pose GO_TO_TARGET = new Pose(18.53, 58.42, 2.67);
 
 
     private double currentRPM = 2500.0;
@@ -90,6 +101,10 @@ public class BlueTeleOp extends OpMode {
         outtakeTimer = new ElapsedTime();
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
         //turret.goToPosition(180);
+        ledHeadlight = hardwareMap.get(Servo.class, "ledLight");
+        ledHeadlight.setPosition(0.0);
+        ledHeadlight2 = hardwareMap.get(Servo.class, "ledLight2");
+        ledHeadlight2.setPosition(0.0);
         pinpoint.recalibrateIMU();
 
         if (PoseStorage.currentPose != null) {
@@ -138,6 +153,31 @@ public class BlueTeleOp extends OpMode {
             );
         }
 
+        // --- go-to-position on A button ---
+        if (gamepad1.aWasPressed()) {
+            Pose cur = follower.getPose();
+            PathChain goToPath = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(cur.getX(), cur.getY(), cur.getHeading()),
+                            GO_TO_TARGET))
+                    .setLinearHeadingInterpolation(cur.getHeading(), GO_TO_TARGET.getHeading())
+                    .build();
+            follower.followPath(goToPath, 0.5, false);
+            goingToPosition = true;
+        }
+        if (goingToPosition) {
+            boolean stickMoved = Math.abs(gamepad1.left_stick_x) > 0.1 || Math.abs(gamepad1.left_stick_y) > 0.1;
+            if (!follower.isBusy() || stickMoved) {
+                goingToPosition = false;
+                follower.setMaxPower(1.0);
+                follower.startTeleopDrive();
+            }
+        }
+
+        if(gamepad1.bWasPressed()){
+            GO_TO_TARGET = follower.getPose();
+        }
+
         // --- estimate robot velocity (radial relative to target) ---
         Pose currentPose = follower.getPose();
         double nowSec = getRuntime();
@@ -176,8 +216,8 @@ public class BlueTeleOp extends OpMode {
         lastPoseTimeSec = nowSec;
 
         // Field Reset
-        if (gamepad1.startWasPressed()){
-            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
+        if (gamepad1.shareWasPressed()){
+            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(0)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
             pinpoint.recalibrateIMU();
             // Ensure LockMode doesn't keep stale state across reset
@@ -278,10 +318,16 @@ public class BlueTeleOp extends OpMode {
 
 
         if (spindexer.isFull()){
+            ledHeadlight.setPosition(1.0);
+            ledHeadlight2.setPosition(1.0);
             if (!lastFull) gamepad2.rumble(2000);
             lastFull = true;
         }
-        else lastFull = false;
+        else{
+            ledHeadlight.setPosition(0.0);
+            ledHeadlight2.setPosition(0.0);
+            lastFull = false;
+        }
 
         if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
             spindexer.setShootIndex(1);
@@ -338,7 +384,7 @@ public class BlueTeleOp extends OpMode {
 
         // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 2) {
-            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 3 : OUTTAKE_DELAY_MS)) {
                 spindexer.advanceShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
@@ -394,3 +440,4 @@ public class BlueTeleOp extends OpMode {
         }
     }
 }
+

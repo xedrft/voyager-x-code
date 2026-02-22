@@ -1,11 +1,14 @@
 package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.PathChain;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
@@ -25,6 +28,8 @@ public class RedTeleOp extends OpMode {
     private static final Pose startingPose = PoseStorage.currentPose;
 
     private BarIntake barIntake;
+    private Servo ledHeadlight;
+    private Servo ledHeadlight2;
     private Spindexer spindexer;
 
 
@@ -49,6 +54,8 @@ public class RedTeleOp extends OpMode {
     private static double OUTTAKE_DELAY_MS = 300;
 
     private int spinInterval = 0;
+    private boolean goingToPosition = false;
+    private static Pose GO_TO_TARGET = new Pose(144-18.53, 58.42, 2.67 + 2 * Math.PI);
     private GoBildaPinpointDriver pinpoint;
 
 
@@ -91,6 +98,10 @@ public class RedTeleOp extends OpMode {
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        ledHeadlight = hardwareMap.get(Servo.class, "ledLight");
+        ledHeadlight.setPosition(0.0);
+        ledHeadlight2 = hardwareMap.get(Servo.class, "ledLight2");
+        ledHeadlight2.setPosition(0.0);
         pinpoint.recalibrateIMU();
         //turret.goToPosition(180);
 
@@ -141,6 +152,31 @@ public class RedTeleOp extends OpMode {
             );
         }
 
+        // --- go-to-position on A button ---
+        if (gamepad1.aWasPressed()) {
+            Pose cur = follower.getPose();
+            PathChain goToPath = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(cur.getX(), cur.getY(), cur.getHeading()),
+                            GO_TO_TARGET))
+                    .setLinearHeadingInterpolation(cur.getHeading(), GO_TO_TARGET.getHeading())
+                    .build();
+            follower.followPath(goToPath, 0.5, false);
+            goingToPosition = true;
+        }
+        if (goingToPosition) {
+            boolean stickMoved = Math.abs(gamepad1.left_stick_x) > 0.1 || Math.abs(gamepad1.left_stick_y) > 0.1;
+            if (!follower.isBusy() || stickMoved) {
+                goingToPosition = false;
+                follower.setMaxPower(1.0);
+                follower.startTeleopDrive();
+            }
+        }
+
+        if(gamepad1.bWasPressed()){
+            GO_TO_TARGET = follower.getPose();
+        }
+
         // --- estimate robot velocity (radial relative to target) ---
         Pose currentPose = follower.getPose();
         double nowSec = getRuntime();
@@ -179,8 +215,8 @@ public class RedTeleOp extends OpMode {
         lastPoseTimeSec = nowSec;
 
         // Field Reset
-        if (gamepad1.startWasPressed()){
-            follower.setPose(new Pose(7.5, 7.75, Math.toRadians(0)));
+        if (gamepad1.shareWasPressed()){
+            follower.setPose(new Pose(7.5, 7.75, Math.toRadians(180)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
             pinpoint.recalibrateIMU();
             // Ensure LockMode doesn't keep stale state across reset
@@ -251,10 +287,16 @@ public class RedTeleOp extends OpMode {
 
 
         if (spindexer.isFull()){
+            ledHeadlight.setPosition(1.0);
+            ledHeadlight2.setPosition(1.0);
             if (!lastFull) gamepad2.rumble(2000);
             lastFull = true;
         }
-        else lastFull = false;
+        else{
+            ledHeadlight.setPosition(0.0);
+            ledHeadlight2.setPosition(0.0);
+            lastFull = false;
+        }
 
         // Update RPM
         turret.setShooterRPM(currentRPM);
@@ -391,3 +433,4 @@ public class RedTeleOp extends OpMode {
         }
     }
 }
+
