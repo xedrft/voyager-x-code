@@ -195,6 +195,8 @@ public class Spindexer {
     public double getLastDt() { return lastDt; }
 
 
+public double getReferenceAngle() { return referenceAngle; }
+
 // --- Tracking & Positions ---
 
     public void setIntakeIndex(int index) {
