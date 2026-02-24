@@ -49,7 +49,8 @@ public class BlueFarSideAuto extends OpMode {
         if (s != lastState) {
             lastState = s;
             stateTimer.reset();
-            isSettling = false; // Reset settling flag on state change
+            isSettling = false;
+            shootIndexSet = false;
         }
         pathState = s;
     }
@@ -63,9 +64,36 @@ public class BlueFarSideAuto extends OpMode {
     // You can tune this; in your excerpt you used ~650-700ms depending on shot
     public static double OUTTAKE_DELAY_MS = 700;
 
+    // Stop going to the shoot position when this many seconds remain in the 30s auto
+    public static double LOOP_STOP_TIME_S = 28.5;
+
+    private int spinInterval = 0;
+
+    // Shoot queue: only shoot filled slots, in order
+    private int[] shootQueue = new int[0];
+    private int shootQueueIndex = 0;
+
+    /** Returns indexes (0,1,2) of filled slots in ascending order. */
+    private int[] buildShootQueue() {
+        int count = 0;
+        for (char c : spindexer.filled) if (c != '_') count++;
+        int[] q = new int[count];
+        int i = 0;
+        for (int j = 0; j < 3; j++) if (spindexer.filled[j] != '_') q[i++] = j;
+        return q;
+    }
+
+    /** Returns the first filled slot index, or 0 as fallback. */
+    private int getFirstFilledIndex() {
+        for (int i = 0; i < 3; i++) if (spindexer.filled[i] != '_') return i;
+        return 0;
+    }
+
     // -------------------- Loop timing --------------------
     public static int LOOP_WAIT_MS = 50;
+    public static double SHOOT_INDEX_DELAY_MS = 200; // how far into the path before repositioning spindexer
     private boolean isSettling = false;
+    private boolean shootIndexSet = false;
 
     // -------------------- Dynamic destinations --------------------
     // Park pose (same as your original far-side code)
@@ -82,8 +110,8 @@ public class BlueFarSideAuto extends OpMode {
 
     // -------------------- “Auto shoot power” equivalents in this framework --------------------
     // In your OpMode auto, shooter power is “RPM” + turret angle
-    public static double currentRPM = 3250;
-    public static double targetAngleDeg = 287;
+    public static double currentRPM = 3265;
+    public static double targetAngleDeg = 291;
 
 
     // ------------------------------------------------------------------------
@@ -109,6 +137,9 @@ public class BlueFarSideAuto extends OpMode {
                 "distanceSensor",
                 colorSensor
         );
+        spindexer.setColorAtPos('X', 0);
+        spindexer.setColorAtPos('X', 1);
+        spindexer.setColorAtPos('X', 2);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         turret = new Turret(
                 hardwareMap,
@@ -154,12 +185,11 @@ public class BlueFarSideAuto extends OpMode {
         turret.goToPosition(targetAngleDeg);
         turret.on();
 
-        // Optional turret tracking (commented like your excerpt)
-        // Spindexer update (TeleOp-like)
+        // Spindexer update
         spindexer.update();
 
-        // If full, stop intake (matches your excerpt)
-        if (spindexer.isFull()) {
+        // Intake logic: stop when full, stop during outtake
+        if (spindexer.isFull() || outtakeInProgress) {
             barIntake.stop();
         }
 
@@ -187,16 +217,24 @@ public class BlueFarSideAuto extends OpMode {
     // ------------------------------------------------------------------------
 
     private void startOuttakeRoutine() {
-        outtakeInProgress = true;
+        // Build queue from currently filled slots only
+        shootQueue = buildShootQueue();
+        shootQueueIndex = 0;
         outtakeAdvanceCount = 0;
+
+        outtakeInProgress = true;
         outtakeTimer.reset();
         lastAdvanceTime = 0;
 
-
-        // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
 
-        // Step 2: Set kicker servo to kick
+        if (shootQueue.length == 0) {
+            outtakeInProgress = false;
+            return;
+        }
+
+        // Position to first filled slot, then kick
+        spindexer.setShootIndex(shootQueue[0]);
         kickerServo.kick();
         lastAdvanceTime = outtakeTimer.milliseconds();
     }
@@ -204,20 +242,24 @@ public class BlueFarSideAuto extends OpMode {
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
-        // Check if it's time for the next advanceIntake call
-        if (outtakeAdvanceCount < 2) {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+        int advancesNeeded = shootQueue.length - 1; // one advanceShoot per additional filled slot
+
+        if (outtakeAdvanceCount < advancesNeeded) {
+            // Use half-delay for first advance (ball is already close), full delay after
+            double delay = outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS;
+            if (currentTime - lastAdvanceTime >= delay) {
                 spindexer.advanceShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
             }
         } else {
+            // All filled slots shot — clean up
             if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
-                // All 3 advanceIntake calls completed, set kicker back to normal
                 kickerServo.normal();
                 spindexer.clearTracking();
                 barIntake.spinIntake();
                 spindexer.setIntakeIndex(0);
+                spinInterval = 0;
                 outtakeInProgress = false;
             }
         }
@@ -263,19 +305,26 @@ public class BlueFarSideAuto extends OpMode {
             // ------------------------------------------------------------
             case 2:
                 if (!follower.isBusy() && stateTimer.milliseconds() > 2500) {
-                    // Go to shoot1
-                    spindexer.setShootIndex(1);
                     follower.followPath(paths.shoot1);
                     setState(3);
                 }
                 break;
 
             case 3:
+                // Pre-position to first filled slot while en route (not before path starts)
+                if (!shootIndexSet && stateTimer.milliseconds() > SHOOT_INDEX_DELAY_MS) {
+                    spindexer.setShootIndex(getFirstFilledIndex());
+                    shootIndexSet = true;
+                }
                 if (!follower.isBusy()) {
-                    // Tune for shoot1 position
-
-                    startOuttakeRoutine();
-                    setState(4);
+                    if (!isSettling) {
+                        isSettling = true;
+                        waitTimer.reset();
+                    }
+                    if (waitTimer.milliseconds() > 200) {
+                        startOuttakeRoutine();
+                        setState(4);
+                    }
                 }
                 break;
 
@@ -292,17 +341,25 @@ public class BlueFarSideAuto extends OpMode {
             // ------------------------------------------------------------
             case 5:
                 if (!follower.isBusy() && stateTimer.milliseconds() > 2500) {
-                    spindexer.setShootIndex(1);
                     follower.followPath(paths.shoot2);
                     setState(6);
                 }
                 break;
 
             case 6:
+                if (!shootIndexSet && stateTimer.milliseconds() > SHOOT_INDEX_DELAY_MS) {
+                    spindexer.setShootIndex(getFirstFilledIndex());
+                    shootIndexSet = true;
+                }
                 if (!follower.isBusy()) {
-                    // Tune for shoot2 position
-                    startOuttakeRoutine();
-                    setState(7);
+                    if (!isSettling) {
+                        isSettling = true;
+                        waitTimer.reset();
+                    }
+                    if (waitTimer.milliseconds() > 200) {
+                        startOuttakeRoutine();
+                        setState(7);
+                    }
                 }
                 break;
 
@@ -322,10 +379,16 @@ public class BlueFarSideAuto extends OpMode {
                 if (!follower.isBusy()) {
 
                     if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
-                    // Priority 2: if full, go shoot, then return to loop
+
+                    // Time check: stop heading to shoot if < 1.5s remain, stay outside
+                    if (matchTimer.seconds() > LOOP_STOP_TIME_S) {
+                        setState(99);
+                        break;
+                    }
+
+                    // If balls to shoot, go to shoot position
                     if (spindexer.getBalls() > 0) {
                         paths.buildToShoot(follower, follower.getPose());
-                        spindexer.setShootIndex(1);
                         follower.followPath(paths.toShoot);
                         setState(90);
                         break;
@@ -342,7 +405,14 @@ public class BlueFarSideAuto extends OpMode {
                 if (!follower.isBusy()) {
 
                     if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
-                    // Priority 2: if full, go shoot, then return to loop
+
+                    // Time check: stop heading to shoot if < 1.5s remain, stay outside
+                    if (matchTimer.seconds() > LOOP_STOP_TIME_S) {
+                        setState(99);
+                        break;
+                    }
+
+                    // If balls to shoot, go to shoot position
                     if (spindexer.getBalls() > 0) {
                         paths.buildToShoot(follower, follower.getPose());
                         follower.followPath(paths.toShoot);
@@ -361,19 +431,29 @@ public class BlueFarSideAuto extends OpMode {
             // Go to shoot because full
             // ------------------------------------------------------------
             case 90:
+                if (!shootIndexSet && stateTimer.milliseconds() > SHOOT_INDEX_DELAY_MS) {
+                    spindexer.setShootIndex(getFirstFilledIndex());
+                    shootIndexSet = true;
+                }
                 if (!follower.isBusy()) {
-                    //wait for 300 ms
-                    if (waitTimer.milliseconds() < 200) return;
-
-                    // Tune for SHOOT_POSE
-                    startOuttakeRoutine();
-                    setState(91);
+                    if (!isSettling) {
+                        isSettling = true;
+                        waitTimer.reset();
+                    }
+                    if (waitTimer.milliseconds() > 200) {
+                        startOuttakeRoutine();
+                        setState(91);
+                    }
                 }
                 break;
 
             case 91:
                 if (!outtakeInProgress) {
-                    // Return to loop
+                    // If time is nearly up, stay outside rather than re-entering the loop
+                    if (matchTimer.seconds() > LOOP_STOP_TIME_S) {
+                        setState(99);
+                        break;
+                    }
                     follower.followPath(paths.path5);
                     waitTimer.reset();
                     setState(8);
