@@ -49,22 +49,12 @@ public class BlueTeleOp extends OpMode {
     // Outtake routine state
     private boolean outtakeInProgress = false;
 
-    // Spindexer stall recovery
-    // 0 = normal, 1 = retreating to closest intake pos, 2 = returning to original target
-    private int stallRecoveryState = 0;
-    private double stallSavedTarget = 0.0;
-    private final ElapsedTime stallTimer = new ElapsedTime();
-    private static final double STALL_POWER_THRESHOLD = 0.35;   // motor must be pulling this hard
-    private static final double STALL_VELOCITY_THRESHOLD = 8.0; // deg/s — below this = stalled
-    private static final double STALL_ERROR_THRESHOLD = 5.0;    // deg — must have significant error
-    private static final double STALL_DETECT_MS = 350;          // must be stalled this long to trigger
-
     boolean rpmCap = true;
     private boolean singleOuttakeInProgress = false;
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static double OUTTAKE_DELAY_MS = 300;
+    private static double OUTTAKE_DELAY_MS = 150;
 
     private int spinInterval = 0;
     private boolean goingToPosition = false;
@@ -342,12 +332,11 @@ public class BlueTeleOp extends OpMode {
         if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
             spindexer.setShootIndex(1);
             spinInterval++;
-            if (spinInterval < 30)
-                barIntake.spinIntake();  // keep spinning so last ball settles in
-            else if (spinInterval < 50)
-                barIntake.spinOuttake(); // push overflow back out
-            else
+            if (spinInterval > 30 && spinInterval < 50)
+                barIntake.spinOuttake();
+            else {
                 barIntake.stop();
+            }
         }
 
         if (outtakeInProgress){
@@ -356,54 +345,8 @@ public class BlueTeleOp extends OpMode {
 
         spindexer.update();
 
-        // --- Spindexer stall recovery ---
-        // Skip during outtake sequences — those movements are intentional
-        if (!outtakeInProgress && !singleOuttakeInProgress) {
-            switch (stallRecoveryState) {
-                case 0: // Normal — watch for stall
-                    boolean motorStraining = Math.abs(spindexer.getLastOutput()) > STALL_POWER_THRESHOLD;
-                    boolean notMoving     = Math.abs(spindexer.getLastVelocity()) < STALL_VELOCITY_THRESHOLD;
-                    boolean notAtTarget   = Math.abs(spindexer.getLastError()) > STALL_ERROR_THRESHOLD;
-                    if (motorStraining && notMoving && notAtTarget) {
-                        if (stallTimer.milliseconds() > STALL_DETECT_MS) {
-                            // Save where we were trying to go
-                            stallSavedTarget = spindexer.getReferenceAngle();
-                            // Find closest intake position and retreat to it
-                            double cur = spindexer.getCalibratedAngle();
-                            int closest = 0;
-                            double minDiff = Double.MAX_VALUE;
-                            for (int i = 0; i < Spindexer.INTAKE_ANGLES.length; i++) {
-                                double d = Math.abs(Spindexer.INTAKE_ANGLES[i] - cur);
-                                if (d > 180) d = 360 - d;
-                                if (d < minDiff) { minDiff = d; closest = i; }
-                            }
-                            spindexer.startMoveToAngle(Spindexer.INTAKE_ANGLES[closest]);
-                            stallRecoveryState = 1;
-                        }
-                    } else {
-                        stallTimer.reset(); // Reset timer whenever not stalling
-                    }
-                    break;
 
-                case 1: // Retreating to closest intake position
-                    if (spindexer.isAtTarget(5.0)) {
-                        spindexer.startMoveToAngle(stallSavedTarget);
-                        stallRecoveryState = 2;
-                    }
-                    break;
 
-                case 2: // Returning to original target
-                    if (spindexer.isAtTarget(5.0)) {
-                        stallTimer.reset();
-                        stallRecoveryState = 0;
-                    }
-                    break;
-            }
-        } else {
-            // Reset stall timer and state during outtake so we don't false-trigger after
-            stallTimer.reset();
-            stallRecoveryState = 0;
-        }
 
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
 
@@ -413,7 +356,6 @@ public class BlueTeleOp extends OpMode {
         telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
-        telemetry.addData("Stall Recovery State", stallRecoveryState == 0 ? "Normal" : stallRecoveryState == 1 ? "Retreating" : "Returning");
         telemetry.addData("Outtake In Progress", outtakeInProgress);
         telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
         char[] filled = spindexer.getFilled();
@@ -498,3 +440,5 @@ public class BlueTeleOp extends OpMode {
         }
     }
 }
+
+

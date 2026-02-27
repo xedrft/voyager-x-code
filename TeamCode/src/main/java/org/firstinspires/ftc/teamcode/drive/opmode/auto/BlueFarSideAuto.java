@@ -51,9 +51,27 @@ public class BlueFarSideAuto extends OpMode {
             stateTimer.reset();
             isSettling = false;
             shootIndexSet = false;
+            lastDrivetrainPose = null;
+            drivetrainStuckTimer.reset();
         }
         pathState = s;
     }
+
+    // -------------------- Drivetrain stuck recovery --------------------
+    private Pose lastDrivetrainPose = null;
+    private final ElapsedTime drivetrainStuckTimer = new ElapsedTime();
+    private static final double DRIVETRAIN_STUCK_DIST_IN = 2.0; // inches of movement required to not be "stuck"
+    public static double DRIVETRAIN_STUCK_MS = 1500;             // ms of no movement before triggering
+
+    // -------------------- Spindexer stall recovery --------------------
+    // 0 = normal, 1 = retreating to closest intake pos, 2 = returning to original target
+    private int stallRecoveryState = 0;
+    private double stallSavedTarget = 0.0;
+    private final ElapsedTime stallTimer = new ElapsedTime();
+    private static final double STALL_POWER_THRESHOLD = 0.35;
+    private static final double STALL_VELOCITY_THRESHOLD = 8.0;
+    private static final double STALL_ERROR_THRESHOLD = 5.0;
+    private static final double STALL_DETECT_MS = 350;
 
     // -------------------- Outtake routine (ported pattern from your OpMode BlueAuto) --------------------
     private final ElapsedTime outtakeTimer = new ElapsedTime();
@@ -63,11 +81,18 @@ public class BlueFarSideAuto extends OpMode {
 
     // You can tune this; in your excerpt you used ~650-700ms depending on shot
     public static double OUTTAKE_DELAY_MS = 700;
+    public static double FAR_OUTTAKE_DELAY_MS = 900; // longer delay for preset far shot
+
+    private boolean farOuttakeMode = false;
 
     // Stop going to the shoot position when this many seconds remain in the 30s auto
-    public static double LOOP_STOP_TIME_S = 28.5;
+    public static double LOOP_STOP_TIME_S = 27.0;
 
     private int spinInterval = 0;
+
+    // Retry logic: alternate Y positions when 0 balls are picked up
+    private int retryCount = 0; // increments each time 0 balls detected in loop
+    // retryCount % 2 == 1 → 9.0, retryCount % 2 == 0 → 35.0
 
     // Shoot queue: only shoot filled slots, in order
     private int[] shootQueue = new int[0];
@@ -91,6 +116,8 @@ public class BlueFarSideAuto extends OpMode {
 
     // -------------------- Loop timing --------------------
     public static int LOOP_WAIT_MS = 50;
+
+    public static int SETTLE_TIME = 400;
     public static double SHOOT_INDEX_DELAY_MS = 200; // how far into the path before repositioning spindexer
     private boolean isSettling = false;
     private boolean shootIndexSet = false;
@@ -110,7 +137,7 @@ public class BlueFarSideAuto extends OpMode {
 
     // -------------------- “Auto shoot power” equivalents in this framework --------------------
     // In your OpMode auto, shooter power is “RPM” + turret angle
-    public static double currentRPM = 3265;
+    public static double currentRPM = 3255;
     public static double targetAngleDeg = 291;
 
 
@@ -180,6 +207,31 @@ public class BlueFarSideAuto extends OpMode {
         // Update follower
         follower.update();
 
+        // --- Drivetrain stuck detection ---
+        // If the follower is actively driving but the robot hasn't moved, go back to shoot position
+        if (follower.isBusy() && !outtakeInProgress) {
+            Pose cur = follower.getPose();
+            if (lastDrivetrainPose == null) {
+                lastDrivetrainPose = cur;
+                drivetrainStuckTimer.reset();
+            } else {
+                double dist = Math.hypot(cur.getX() - lastDrivetrainPose.getX(),
+                                         cur.getY() - lastDrivetrainPose.getY());
+                if (dist > DRIVETRAIN_STUCK_DIST_IN) {
+                    lastDrivetrainPose = cur;
+                    drivetrainStuckTimer.reset();
+                } else if (drivetrainStuckTimer.milliseconds() > DRIVETRAIN_STUCK_MS) {
+                    // Stuck — abort current path and head to shoot position
+                    paths.buildToShoot(follower, follower.getPose());
+                    follower.followPath(paths.toShoot);
+                    setState(90);
+                }
+            }
+        } else {
+            lastDrivetrainPose = null;
+            drivetrainStuckTimer.reset();
+        }
+
         // Keep shooter ready
         turret.setShooterRPM(currentRPM);
         turret.goToPosition(targetAngleDeg);
@@ -188,8 +240,66 @@ public class BlueFarSideAuto extends OpMode {
         // Spindexer update
         spindexer.update();
 
-        // Intake logic: stop when full, stop during outtake
-        if (spindexer.isFull() || outtakeInProgress) {
+        // --- Spindexer stall recovery ---
+        if (!outtakeInProgress) {
+            switch (stallRecoveryState) {
+                case 0: // Normal — watch for stall
+                    boolean motorStraining = Math.abs(spindexer.getLastOutput()) > STALL_POWER_THRESHOLD;
+                    boolean notMoving      = Math.abs(spindexer.getLastVelocity()) < STALL_VELOCITY_THRESHOLD;
+                    boolean notAtTarget    = Math.abs(spindexer.getLastError()) > STALL_ERROR_THRESHOLD;
+                    if (motorStraining && notMoving && notAtTarget) {
+                        if (stallTimer.milliseconds() > STALL_DETECT_MS) {
+                            stallSavedTarget = spindexer.getReferenceAngle();
+                            double cur = spindexer.getCalibratedAngle();
+                            int closest = 0;
+                            double minDiff = Double.MAX_VALUE;
+                            for (int i = 0; i < Spindexer.INTAKE_ANGLES.length; i++) {
+                                double d = Math.abs(Spindexer.INTAKE_ANGLES[i] - cur);
+                                if (d > 180) d = 360 - d;
+                                if (d < minDiff) { minDiff = d; closest = i; }
+                            }
+                            spindexer.startMoveToAngle(Spindexer.INTAKE_ANGLES[closest]);
+                            stallRecoveryState = 1;
+                        }
+                    } else {
+                        stallTimer.reset();
+                    }
+                    break;
+
+                case 1: // Retreating to closest intake position
+                    if (spindexer.isAtTarget(5.0)) {
+                        spindexer.startMoveToAngle(stallSavedTarget);
+                        stallRecoveryState = 2;
+                    }
+                    break;
+
+                case 2: // Returning to original target
+                    if (spindexer.isAtTarget(5.0)) {
+                        stallTimer.reset();
+                        stallRecoveryState = 0;
+                    }
+                    break;
+            }
+        } else {
+            // Reset during outtake so we don't false-trigger after
+            stallTimer.reset();
+            stallRecoveryState = 0;
+        }
+
+        // Intake logic (mirrors BlueTeleOp)
+        // Activate when full OR when traveling to shoot with any balls loaded
+        boolean travelingToShoot = pathState == 3 || pathState == 6 || pathState == 90;
+        if ((spindexer.isFull() || (travelingToShoot && spindexer.getBalls() > 0)) && !outtakeInProgress) {
+            spinInterval++;
+            if (spinInterval < 40)
+                barIntake.spinIntake();       // let last ball settle in
+            else if (spinInterval < 50)
+                barIntake.spinOuttake();      // push overflow back out
+            else
+                barIntake.stop();
+        }
+
+        if (outtakeInProgress) {
             barIntake.stop();
         }
 
@@ -209,12 +319,18 @@ public class BlueFarSideAuto extends OpMode {
         panelsTelemetry.debug("Turret Angle (deg)", targetAngleDeg);
         panelsTelemetry.debug("Outtake", outtakeInProgress);
         panelsTelemetry.debug("Full", spindexer.isFull());
+        panelsTelemetry.debug("Stall Recovery", stallRecoveryState == 0 ? "Normal" : stallRecoveryState == 1 ? "Retreating" : "Returning");
         panelsTelemetry.update(telemetry);
     }
 
     // ------------------------------------------------------------------------
     // Outtake routine (kick + advance x3 on delay)
     // ------------------------------------------------------------------------
+
+    private void startFarOuttakeRoutine() {
+        farOuttakeMode = true;
+        startOuttakeRoutine();
+    }
 
     private void startOuttakeRoutine() {
         // Build queue from currently filled slots only
@@ -245,8 +361,8 @@ public class BlueFarSideAuto extends OpMode {
         int advancesNeeded = shootQueue.length - 1; // one advanceShoot per additional filled slot
 
         if (outtakeAdvanceCount < advancesNeeded) {
-            // Use half-delay for first advance (ball is already close), full delay after
-            double delay = outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS;
+
+            double delay = farOuttakeMode ? FAR_OUTTAKE_DELAY_MS : OUTTAKE_DELAY_MS;
             if (currentTime - lastAdvanceTime >= delay) {
                 spindexer.advanceShoot();
                 outtakeAdvanceCount++;
@@ -254,12 +370,14 @@ public class BlueFarSideAuto extends OpMode {
             }
         } else {
             // All filled slots shot — clean up
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+            double cleanupDelay = farOuttakeMode ? FAR_OUTTAKE_DELAY_MS : OUTTAKE_DELAY_MS;
+            if (currentTime - lastAdvanceTime >= cleanupDelay) {
                 kickerServo.normal();
                 spindexer.clearTracking();
                 barIntake.spinIntake();
                 spindexer.setIntakeIndex(0);
                 spinInterval = 0;
+                farOuttakeMode = false;
                 outtakeInProgress = false;
             }
         }
@@ -284,9 +402,9 @@ public class BlueFarSideAuto extends OpMode {
             case 0:
                 // Turret tracked-angle helpers were removed from Turret.
                 // Treat the turret as "ready" when the shooter is up to speed.
-                spindexer.setShootIndex(1);
+                spindexer.setShootIndex(0);
                 if (turret.getShooterRPM() > 3400) {
-                    startOuttakeRoutine();
+                    startFarOuttakeRoutine();
                     setState(1);
                 }
                 break;
@@ -321,7 +439,7 @@ public class BlueFarSideAuto extends OpMode {
                         isSettling = true;
                         waitTimer.reset();
                     }
-                    if (waitTimer.milliseconds() > 200) {
+                    if (waitTimer.milliseconds() > SETTLE_TIME) {
                         startOuttakeRoutine();
                         setState(4);
                     }
@@ -356,7 +474,7 @@ public class BlueFarSideAuto extends OpMode {
                         isSettling = true;
                         waitTimer.reset();
                     }
-                    if (waitTimer.milliseconds() > 200) {
+                    if (waitTimer.milliseconds() > SETTLE_TIME) {
                         startOuttakeRoutine();
                         setState(7);
                     }
@@ -388,6 +506,7 @@ public class BlueFarSideAuto extends OpMode {
 
                     // If balls to shoot, go to shoot position
                     if (spindexer.getBalls() > 0) {
+                        retryCount = 0;
                         paths.buildToShoot(follower, follower.getPose());
                         follower.followPath(paths.toShoot);
                         setState(90);
@@ -414,13 +533,17 @@ public class BlueFarSideAuto extends OpMode {
 
                     // If balls to shoot, go to shoot position
                     if (spindexer.getBalls() > 0) {
+                        retryCount = 0;
                         paths.buildToShoot(follower, follower.getPose());
                         follower.followPath(paths.toShoot);
                         setState(90);
                         break;
                     }
 
-                    // Otherwise loop back to path5
+                    // 0 balls — retry at alternate Y (9 on odd retry, 35 on even retry)
+                    retryCount++;
+                    double retryY = (retryCount % 2 == 1) ? 9.0 : 35.0;
+                    paths.buildRetryIntakePath(follower, follower.getPose(), retryY);
                     follower.followPath(paths.path55);
                     waitTimer.reset();
                     setState(8);
@@ -440,7 +563,7 @@ public class BlueFarSideAuto extends OpMode {
                         isSettling = true;
                         waitTimer.reset();
                     }
-                    if (waitTimer.milliseconds() > 200) {
+                    if (waitTimer.milliseconds() > SETTLE_TIME) {
                         startOuttakeRoutine();
                         setState(91);
                     }
@@ -449,9 +572,10 @@ public class BlueFarSideAuto extends OpMode {
 
             case 91:
                 if (!outtakeInProgress) {
-                    // If time is nearly up, stay outside rather than re-entering the loop
+                    // If time is nearly up, drive back to X < 50 rather than re-entering the loop
                     if (matchTimer.seconds() > LOOP_STOP_TIME_S) {
-                        setState(99);
+                        follower.followPath(paths.driveBack);
+                        setState(98);
                         break;
                     }
                     follower.followPath(paths.path5);
@@ -484,6 +608,9 @@ public class BlueFarSideAuto extends OpMode {
 
         // Dynamic paths (built at runtime)
         public PathChain toShoot;
+
+        // End-of-match escape: drives from shoot pose back to X < 50
+        public PathChain driveBack;
 
         public Paths(Follower follower) {
             pickup1 = follower
@@ -552,6 +679,26 @@ public class BlueFarSideAuto extends OpMode {
                             new Pose(25, 14.000)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+
+            driveBack = follower
+                    .pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(61.000, 14.000),
+                            new Pose(35.000, 14.000)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    .build();
+        }
+
+        /** Rebuilds path55 to target the intake at a different Y (for 0-ball retries). */
+        public void buildRetryIntakePath(Follower follower, Pose currentPose, double endY) {
+            path55 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            currentPose,
+                            new Pose(10.000, endY)
+                    ))
+                    .setLinearHeadingInterpolation(currentPose.getHeading(), Math.toRadians(180))
                     .build();
         }
 
