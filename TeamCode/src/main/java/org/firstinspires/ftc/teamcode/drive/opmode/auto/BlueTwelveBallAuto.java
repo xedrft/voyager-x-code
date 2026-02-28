@@ -21,6 +21,7 @@ import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
+import org.firstinspires.ftc.teamcode.util.TelemetryToggle;
 
 import java.util.Objects;
 
@@ -110,7 +111,9 @@ public class BlueTwelveBallAuto extends OpMode {
 
     @Override
     public void init() {
-        panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
+        if (TelemetryToggle.ENABLED) {
+            panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
+        }
 
         follower = Constants.createFollower(hardwareMap);
 
@@ -150,8 +153,10 @@ public class BlueTwelveBallAuto extends OpMode {
         kickerServo.normal();
         turret.setShooterRPM(SHOOT_RPM);
 
-        panelsTelemetry.debug("Status", "Initialized");
-        panelsTelemetry.update(telemetry);
+        if (TelemetryToggle.ENABLED) {
+            panelsTelemetry.debug("Status", "Initialized");
+            panelsTelemetry.update(telemetry);
+        }
     }
 
     @Override
@@ -203,24 +208,26 @@ public class BlueTwelveBallAuto extends OpMode {
         PoseStorage.currentPose = follower.getPose();
 
         // 5) Telemetry
-        panelsTelemetry.debug("State", pathState);
-        panelsTelemetry.debug("X", follower.getPose().getX());
-        panelsTelemetry.debug("Y", follower.getPose().getY());
-        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
-        panelsTelemetry.debug("Outtake", outtakeInProgress);
-        panelsTelemetry.debug("Balls", spindexer.getBalls());
-        panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
-        if(currentBarIntakeState.equals("in")){
-            barIntake.spinIntake();
-        }else if(currentBarIntakeState.equals("out")){
-            barIntake.spinOuttake();
-        }else{
-            barIntake.stop();
+        if (TelemetryToggle.ENABLED) {
+            panelsTelemetry.debug("State", pathState);
+            panelsTelemetry.debug("X", follower.getPose().getX());
+            panelsTelemetry.debug("Y", follower.getPose().getY());
+            panelsTelemetry.debug("Heading", follower.getPose().getHeading());
+            panelsTelemetry.debug("Outtake", outtakeInProgress);
+            panelsTelemetry.debug("Balls", spindexer.getBalls());
+            panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
+            if(currentBarIntakeState.equals("in")){
+                barIntake.spinIntake();
+            }else if(currentBarIntakeState.equals("out")){
+                barIntake.spinOuttake();
+            }else{
+                barIntake.stop();
+            }
+
+
+
+            panelsTelemetry.update(telemetry);
         }
-
-
-
-        panelsTelemetry.update(telemetry);
     }
 
 

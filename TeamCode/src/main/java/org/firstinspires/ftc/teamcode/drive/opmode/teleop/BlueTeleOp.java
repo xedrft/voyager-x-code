@@ -21,6 +21,7 @@ import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
+import org.firstinspires.ftc.teamcode.util.TelemetryToggle;
 
 @TeleOp(name = "Blue TeleOp", group = "TeleOp")
 public class BlueTeleOp extends OpMode {
@@ -296,11 +297,12 @@ public class BlueTeleOp extends OpMode {
         turret.setShooterRPM(currentRPM);
         turret.on(); // Update velocity
 
-
+        /* TELEMETRY DISABLED
         telemetry.addData("Calculated Distance (in)", distance);
         telemetry.addData("Radial Vel (ips)", radialVelocityIps);
         telemetry.addData("RPM Vel Comp", velComp);
         telemetry.addData("Current target RPM:", currentRPM);
+        */
 
         if (gamepad1.leftStickButtonWasPressed()){
             startSingleOuttake('P');
@@ -351,9 +353,10 @@ public class BlueTeleOp extends OpMode {
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
 
         // Telemetry
+        /* TELEMETRY DISABLED
         telemetry.addData("Lock Mode Active", isLocked);
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
-        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
+        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")");
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
         telemetry.addData("Outtake In Progress", outtakeInProgress);
@@ -361,6 +364,7 @@ public class BlueTeleOp extends OpMode {
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
         telemetry.update();
+        */
     }
 
     private void startOuttakeRoutine() {
@@ -440,5 +444,4 @@ public class BlueTeleOp extends OpMode {
         }
     }
 }
-
 
