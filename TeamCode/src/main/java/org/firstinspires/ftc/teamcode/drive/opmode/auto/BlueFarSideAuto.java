@@ -20,7 +20,7 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 
-@Autonomous(name = "Blue Far Side Auto (OpMode)", group = "Autonomous")
+@Autonomous(name = "Blue Far Side Auto", group = "Autonomous")
 @Configurable
 public class BlueFarSideAuto extends OpMode {
 
