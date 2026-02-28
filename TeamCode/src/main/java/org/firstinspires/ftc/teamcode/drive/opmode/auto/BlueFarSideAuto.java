@@ -80,7 +80,7 @@ public class BlueFarSideAuto extends OpMode {
     private double lastAdvanceTime = 0.0;
 
     // You can tune this; in your excerpt you used ~650-700ms depending on shot
-    public static double OUTTAKE_DELAY_MS = 700;
+    public static double OUTTAKE_DELAY_MS = 900;
     public static double FAR_OUTTAKE_DELAY_MS = 900; // longer delay for preset far shot
 
     private boolean farOuttakeMode = false;
@@ -137,7 +137,7 @@ public class BlueFarSideAuto extends OpMode {
 
     // -------------------- “Auto shoot power” equivalents in this framework --------------------
     // In your OpMode auto, shooter power is “RPM” + turret angle
-    public static double currentRPM = 3255;
+    public static double currentRPM = 3265;
     public static double targetAngleDeg = 291;
 
 
@@ -345,6 +345,11 @@ public class BlueFarSideAuto extends OpMode {
         turret.transferOn();
 
         if (shootQueue.length == 0) {
+            // No balls to shoot — reset spindexer back to intake so the next pickup works
+            spindexer.setIntakeIndex(0);
+            barIntake.spinIntake();
+            spinInterval = 0;
+            farOuttakeMode = false;
             outtakeInProgress = false;
             return;
         }

@@ -148,7 +148,7 @@ public class BluePlayoffAuto extends OpMode {
         spindexer.update();
         if (spindexer.isFull() && !outtakeInProgress && follower.getPose().getX() > 12) {
             spinInterval++;
-            if (spinInterval > 30 && spinInterval < 40) {
+            if (spinInterval > 25 && spinInterval < 40) {
                 currentBarIntakeState = "out";
             } else {
                 currentBarIntakeState = "stop";
@@ -404,23 +404,23 @@ public class BluePlayoffAuto extends OpMode {
                             new Pose(144 - 110.000, 110.000),
                             new Pose(144 - 88.149, 77.811),
                             new Pose(144 - 76.078, 54.808),
-                            new Pose(144 - 135.307, 59.578)
+                            new Pose(144 - 135.307, 55.578)
                     )
             ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             ReleaseGate = follower.pathBuilder().addPath(
                     new BezierCurve(
-                            new Pose(144 - 135.307, 59.578),
-                            new Pose(144 - 117.743, 59.268),
-                            new Pose(144 - 128.422, 64.146)
+                            new Pose(144 - 135.307, 55.578),
+                            new Pose(144 - 113.743, 59.268),
+                            new Pose(144 - 128.422, 66.146)
                     )
             ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             Shoot1 = follower.pathBuilder().addPath(
                     new BezierCurve(
-                            new Pose(144 - 128.422, 64.146),
+                            new Pose(144 - 128.422, 66.146),
                             new Pose(144 - 91.583, 66.836),
                             new Pose(144 - 104.346, 103.912)
                     )
@@ -433,7 +433,7 @@ public class BluePlayoffAuto extends OpMode {
                             new Pose(144 - 86.727, 69.932),
                             new Pose(144 - 132.591, 58.597)
                     )
-            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180 - 33))
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180 - 30))
                     .build();
 
             ShootGateIntake = follower.pathBuilder().addPath(
