@@ -186,7 +186,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
         // 3) Update spindexer and run motif classification
         spindexer.update();
-        if (spindexer.isFull() && !outtakeInProgress && follower.getPose().getX() > 12){
+        if (spindexer.isFull() && !outtakeInProgress && follower.getPose().getX() > 12) {
             spinInterval++;
             if ((spinInterval > 30 && spinInterval < 40))
                 currentBarIntakeState = "out";
@@ -195,11 +195,12 @@ public class BlueTwelveBallAuto extends OpMode {
             }
         }
 
-        if (follower.getPose().getX() > 20 && !outtakeInProgress && (pathState == 5 || pathState == 8 || pathState == 11)){
+
+        if (follower.getPose().getX() > 20 && !outtakeInProgress && (pathState == 5 || pathState == 8 || pathState == 11)) {
             if (order != null) spindexer.setShootIndex(order[currentOrderIndex]);
         }
 
-        if (spindexer.isFull() && !outtakeInProgress){
+        if (spindexer.isFull() && !outtakeInProgress) {
             if (order != null) spindexer.setShootIndex(order[currentOrderIndex]);
         }
 
@@ -216,21 +217,18 @@ public class BlueTwelveBallAuto extends OpMode {
             panelsTelemetry.debug("Outtake", outtakeInProgress);
             panelsTelemetry.debug("Balls", spindexer.getBalls());
             panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
-            if(currentBarIntakeState.equals("in")){
-                barIntake.spinIntake();
-            }else if(currentBarIntakeState.equals("out")){
-                barIntake.spinOuttake();
-            }else{
-                barIntake.stop();
-            }
-
-
-
             panelsTelemetry.update(telemetry);
         }
+
+        if (currentBarIntakeState.equals("in")) {
+            barIntake.spinIntake();
+        } else if (currentBarIntakeState.equals("out")) {
+            barIntake.spinOuttake();
+        } else {
+            barIntake.stop();
+        }
+
     }
-
-
     // -----------------------------------------------------------------------------------------
     // State machine
     // -----------------------------------------------------------------------------------------
