@@ -491,7 +491,7 @@ public class RedFarSideAuto extends OpMode {
             // Loop: path5 <-> path6 with priority checks
             // ------------------------------------------------------------
             case 8:
-                if (!follower.isBusy()) {
+                if (!follower.isBusy() || stateTimer.milliseconds() > 3000) { // if stuck for 3s, re-evaluate (prevents softlock if something goes wrong in the loop)
 
                     if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
 
@@ -541,6 +541,8 @@ public class RedFarSideAuto extends OpMode {
                     retryCount++;
                     double retryY = (retryCount % 2 == 1) ? 9.0 : 35.0;
                     paths.buildRetryIntakePath(follower, follower.getPose(), retryY);
+                    // IMPORTANT: also rebuild path6 so it starts from the same Y as the retry intake point
+                    paths.buildPath6(follower, retryY);
                     follower.followPath(paths.path55);
                     waitTimer.reset();
                     setState(8);
@@ -703,6 +705,19 @@ public class RedFarSideAuto extends OpMode {
                             new Pose(134.000, endY)  // blue 10 → red 134
                     ))
                     .setLinearHeadingInterpolation(currentPose.getHeading(), Math.toRadians(0))
+                    .build();
+        }
+
+        /** Rebuilds path6 to connect from the dynamic intake Y (used in retries). */
+        public void buildPath6(Follower follower, double startY) {
+            // blue: (10, startY) -> (25, 14)
+            // red : (134, startY) -> (119, 14)
+            path6 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(134.000, startY),
+                            new Pose(119.000, 14.000)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
         }
 

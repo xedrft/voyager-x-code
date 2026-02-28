@@ -60,18 +60,18 @@ public class BlueFarSideAuto extends OpMode {
     // -------------------- Drivetrain stuck recovery --------------------
     private Pose lastDrivetrainPose = null;
     private final ElapsedTime drivetrainStuckTimer = new ElapsedTime();
-    private static final double DRIVETRAIN_STUCK_DIST_IN = 2.0; // inches of movement required to not be "stuck"
-    public static double DRIVETRAIN_STUCK_MS = 1500;             // ms of no movement before triggering
+     private static final double DRIVETRAIN_STUCK_DIST_IN = 2.0; // inches of movement required to not be "stuck"
+     public static double DRIVETRAIN_STUCK_MS = 1500;             // ms of no movement before triggering
 
     // -------------------- Spindexer stall recovery --------------------
     // 0 = normal, 1 = retreating to closest intake pos, 2 = returning to original target
     private int stallRecoveryState = 0;
-    private double stallSavedTarget = 0.0;
-    private final ElapsedTime stallTimer = new ElapsedTime();
-    private static final double STALL_POWER_THRESHOLD = 0.35;
-    private static final double STALL_VELOCITY_THRESHOLD = 8.0;
-    private static final double STALL_ERROR_THRESHOLD = 5.0;
-    private static final double STALL_DETECT_MS = 350;
+     private double stallSavedTarget = 0.0;
+     private final ElapsedTime stallTimer = new ElapsedTime();
+     private static final double STALL_POWER_THRESHOLD = 0.35;
+     private static final double STALL_VELOCITY_THRESHOLD = 8.0;
+     private static final double STALL_ERROR_THRESHOLD = 5.0;
+     private static final double STALL_DETECT_MS = 350;
 
     // -------------------- Outtake routine (ported pattern from your OpMode BlueAuto) --------------------
     private final ElapsedTime outtakeTimer = new ElapsedTime();
@@ -499,7 +499,7 @@ public class BlueFarSideAuto extends OpMode {
             // Loop: path5 <-> path6 with priority checks
             // ------------------------------------------------------------
             case 8:
-                if (!follower.isBusy()) {
+                if (!follower.isBusy() || stateTimer.milliseconds() > 3000) { // if stuck for 3s, re-evaluate (prevents softlock if something goes wrong in the loop)
 
                     if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
 
@@ -549,6 +549,8 @@ public class BlueFarSideAuto extends OpMode {
                     retryCount++;
                     double retryY = (retryCount % 2 == 1) ? 9.0 : 35.0;
                     paths.buildRetryIntakePath(follower, follower.getPose(), retryY);
+                    // IMPORTANT: also rebuild path6 so it starts from the same Y as the retry intake point
+                    paths.buildPath6(follower, retryY);
                     follower.followPath(paths.path55);
                     waitTimer.reset();
                     setState(8);
@@ -704,6 +706,17 @@ public class BlueFarSideAuto extends OpMode {
                             new Pose(10.000, endY)
                     ))
                     .setLinearHeadingInterpolation(currentPose.getHeading(), Math.toRadians(180))
+                    .build();
+        }
+
+        /** Rebuilds path6 to connect from the dynamic intake Y (used in retries). */
+        public void buildPath6(Follower follower, double startY) {
+            path6 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(10.000, startY),
+                            new Pose(25, 14.000)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
         }
 
