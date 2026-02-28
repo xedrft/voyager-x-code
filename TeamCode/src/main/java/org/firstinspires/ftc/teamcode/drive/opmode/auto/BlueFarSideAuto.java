@@ -209,28 +209,28 @@ public class BlueFarSideAuto extends OpMode {
 
         // --- Drivetrain stuck detection ---
         // If the follower is actively driving but the robot hasn't moved, go back to shoot position
-        if (follower.isBusy() && !outtakeInProgress) {
-            Pose cur = follower.getPose();
-            if (lastDrivetrainPose == null) {
-                lastDrivetrainPose = cur;
-                drivetrainStuckTimer.reset();
-            } else {
-                double dist = Math.hypot(cur.getX() - lastDrivetrainPose.getX(),
-                                         cur.getY() - lastDrivetrainPose.getY());
-                if (dist > DRIVETRAIN_STUCK_DIST_IN) {
-                    lastDrivetrainPose = cur;
-                    drivetrainStuckTimer.reset();
-                } else if (drivetrainStuckTimer.milliseconds() > DRIVETRAIN_STUCK_MS) {
-                    // Stuck — abort current path and head to shoot position
-                    paths.buildToShoot(follower, follower.getPose());
-                    follower.followPath(paths.toShoot);
-                    setState(90);
-                }
-            }
-        } else {
-            lastDrivetrainPose = null;
-            drivetrainStuckTimer.reset();
-        }
+//        if (follower.isBusy() && !outtakeInProgress) {
+//            Pose cur = follower.getPose();
+//            if (lastDrivetrainPose == null) {
+//                lastDrivetrainPose = cur;
+//                drivetrainStuckTimer.reset();
+//            } else {
+//                double dist = Math.hypot(cur.getX() - lastDrivetrainPose.getX(),
+//                                         cur.getY() - lastDrivetrainPose.getY());
+//                if (dist > DRIVETRAIN_STUCK_DIST_IN) {
+//                    lastDrivetrainPose = cur;
+//                    drivetrainStuckTimer.reset();
+//                } else if (drivetrainStuckTimer.milliseconds() > DRIVETRAIN_STUCK_MS) {
+//                    // Stuck — abort current path and head to shoot position
+//                    paths.buildToShoot(follower, follower.getPose());
+//                    follower.followPath(paths.toShoot);
+//                    setState(90);
+//                }
+//            }
+//        } else {
+//            lastDrivetrainPose = null;
+//            drivetrainStuckTimer.reset();
+//        }
 
         // Keep shooter ready
         turret.setShooterRPM(currentRPM);
@@ -241,50 +241,50 @@ public class BlueFarSideAuto extends OpMode {
         spindexer.update();
 
         // --- Spindexer stall recovery ---
-        if (!outtakeInProgress) {
-            switch (stallRecoveryState) {
-                case 0: // Normal — watch for stall
-                    boolean motorStraining = Math.abs(spindexer.getLastOutput()) > STALL_POWER_THRESHOLD;
-                    boolean notMoving      = Math.abs(spindexer.getLastVelocity()) < STALL_VELOCITY_THRESHOLD;
-                    boolean notAtTarget    = Math.abs(spindexer.getLastError()) > STALL_ERROR_THRESHOLD;
-                    if (motorStraining && notMoving && notAtTarget) {
-                        if (stallTimer.milliseconds() > STALL_DETECT_MS) {
-                            stallSavedTarget = spindexer.getReferenceAngle();
-                            double cur = spindexer.getCalibratedAngle();
-                            int closest = 0;
-                            double minDiff = Double.MAX_VALUE;
-                            for (int i = 0; i < Spindexer.INTAKE_ANGLES.length; i++) {
-                                double d = Math.abs(Spindexer.INTAKE_ANGLES[i] - cur);
-                                if (d > 180) d = 360 - d;
-                                if (d < minDiff) { minDiff = d; closest = i; }
-                            }
-                            spindexer.startMoveToAngle(Spindexer.INTAKE_ANGLES[closest]);
-                            stallRecoveryState = 1;
-                        }
-                    } else {
-                        stallTimer.reset();
-                    }
-                    break;
-
-                case 1: // Retreating to closest intake position
-                    if (spindexer.isAtTarget(5.0)) {
-                        spindexer.startMoveToAngle(stallSavedTarget);
-                        stallRecoveryState = 2;
-                    }
-                    break;
-
-                case 2: // Returning to original target
-                    if (spindexer.isAtTarget(5.0)) {
-                        stallTimer.reset();
-                        stallRecoveryState = 0;
-                    }
-                    break;
-            }
-        } else {
-            // Reset during outtake so we don't false-trigger after
-            stallTimer.reset();
-            stallRecoveryState = 0;
-        }
+//        if (!outtakeInProgress) {
+//            switch (stallRecoveryState) {
+//                case 0: // Normal — watch for stall
+//                    boolean motorStraining = Math.abs(spindexer.getLastOutput()) > STALL_POWER_THRESHOLD;
+//                    boolean notMoving      = Math.abs(spindexer.getLastVelocity()) < STALL_VELOCITY_THRESHOLD;
+//                    boolean notAtTarget    = Math.abs(spindexer.getLastError()) > STALL_ERROR_THRESHOLD;
+//                    if (motorStraining && notMoving && notAtTarget) {
+//                        if (stallTimer.milliseconds() > STALL_DETECT_MS) {
+//                            stallSavedTarget = spindexer.getReferenceAngle();
+//                            double cur = spindexer.getCalibratedAngle();
+//                            int closest = 0;
+//                            double minDiff = Double.MAX_VALUE;
+//                            for (int i = 0; i < Spindexer.INTAKE_ANGLES.length; i++) {
+//                                double d = Math.abs(Spindexer.INTAKE_ANGLES[i] - cur);
+//                                if (d > 180) d = 360 - d;
+//                                if (d < minDiff) { minDiff = d; closest = i; }
+//                            }
+//                            spindexer.startMoveToAngle(Spindexer.INTAKE_ANGLES[closest]);
+//                            stallRecoveryState = 1;
+//                        }
+//                    } else {
+//                        stallTimer.reset();
+//                    }
+//                    break;
+//
+//                case 1: // Retreating to closest intake position
+//                    if (spindexer.isAtTarget(5.0)) {
+//                        spindexer.startMoveToAngle(stallSavedTarget);
+//                        stallRecoveryState = 2;
+//                    }
+//                    break;
+//
+//                case 2: // Returning to original target
+//                    if (spindexer.isAtTarget(5.0)) {
+//                        stallTimer.reset();
+//                        stallRecoveryState = 0;
+//                    }
+//                    break;
+//            }
+//        } else {
+//            // Reset during outtake so we don't false-trigger after
+//            stallTimer.reset();
+//            stallRecoveryState = 0;
+//        }
 
         // Intake logic (mirrors BlueTeleOp)
         // Activate when full OR when traveling to shoot with any balls loaded

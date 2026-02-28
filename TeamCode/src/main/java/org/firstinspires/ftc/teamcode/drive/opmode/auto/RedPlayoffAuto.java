@@ -145,9 +145,9 @@ public class RedPlayoffAuto extends OpMode {
 
         // 3) Update spindexer
         spindexer.update();
-        if (spindexer.isFull() && !outtakeInProgress && follower.getPose().getX() < 132) {
+        if (spindexer.isFull() && !outtakeInProgress) {
             spinInterval++;
-            if (spinInterval > 30 && spinInterval < 40) {
+            if (spinInterval > 20 && spinInterval < 40) {
                 currentBarIntakeState = "out";
             } else {
                 currentBarIntakeState = "stop";
@@ -255,7 +255,7 @@ public class RedPlayoffAuto extends OpMode {
 
             case 7:
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() < GATE_WAIT_MS) {
+                    if (stateTimer.milliseconds() < GATE_WAIT_MS && !spindexer.isFull()) {
                         return;
                     }
                     follower.followPath(paths.ShootGateIntake);
@@ -282,7 +282,7 @@ public class RedPlayoffAuto extends OpMode {
 
             case 10:
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() < GATE_WAIT_MS) {
+                    if (stateTimer.milliseconds() < GATE_WAIT_MS && !spindexer.isFull()) {
                         return;
                     }
                     follower.followPath(paths.ShootGateIntake);
@@ -440,7 +440,7 @@ public class RedPlayoffAuto extends OpMode {
             ShootGateIntake = follower.pathBuilder().addPath(
                             new BezierCurve(
                                     new Pose(134, 59.5),
-                                    new Pose(75, 69.932),
+                                    new Pose(70, 69.932),
                                     new Pose(104.346, 103.912)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(31), Math.toRadians(0))
