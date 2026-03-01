@@ -14,6 +14,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
@@ -48,54 +49,109 @@ public class RedFarSideAuto extends OpMode {
         if (s != lastState) {
             lastState = s;
             stateTimer.reset();
+            isSettling = false;
+            shootIndexSet = false;
+            lastDrivetrainPose = null;
+            drivetrainStuckTimer.reset();
         }
         pathState = s;
     }
+
+    // -------------------- Drivetrain stuck recovery --------------------
+    private Pose lastDrivetrainPose = null;
+    private final ElapsedTime drivetrainStuckTimer = new ElapsedTime();
+    private static final double DRIVETRAIN_STUCK_DIST_IN = 2.0;
+    public static double DRIVETRAIN_STUCK_MS = 1500;
+
+    // -------------------- Spindexer stall recovery --------------------
+    // 0 = normal, 1 = retreating to closest intake pos, 2 = returning to original target
+    private int stallRecoveryState = 0;
+    private double stallSavedTarget = 0.0;
+    private final ElapsedTime stallTimer = new ElapsedTime();
+    private static final double STALL_POWER_THRESHOLD = 0.35;
+    private static final double STALL_VELOCITY_THRESHOLD = 8.0;
+    private static final double STALL_ERROR_THRESHOLD = 5.0;
+    private static final double STALL_DETECT_MS = 350;
 
     // -------------------- Outtake routine --------------------
     private final ElapsedTime outtakeTimer = new ElapsedTime();
     private boolean outtakeInProgress = false;
     private int outtakeAdvanceCount = 0;
-    private double lastAdvanceTimeMs = 0.0;
+    private double lastAdvanceTime = 0.0;
 
-    public static double OUTTAKE_DELAY_MS = 700;
+    public static double OUTTAKE_DELAY_MS = 900;
+    public static double FAR_OUTTAKE_DELAY_MS = 900;
+
+    private boolean farOuttakeMode = false;
+
+    // Stop going to the shoot position when this many seconds remain in the 30s auto
+    public static double LOOP_STOP_TIME_S = 27.0;
+
+    private int spinInterval = 0;
+
+    // Retry logic: alternate Y positions when 0 balls are picked up
+    private int retryCount = 0; // increments each time 0 balls detected in loop
+    // retryCount % 2 == 1 → 9.0, retryCount % 2 == 0 → 35.0
+
+    // Shoot queue: only shoot filled slots, in order
+    private int[] shootQueue = new int[0];
+    private int shootQueueIndex = 0;
+
+    /** Returns indexes (0,1,2) of filled slots in ascending order. */
+    private int[] buildShootQueue() {
+        int count = 0;
+        for (char c : spindexer.filled) if (c != '_') count++;
+        int[] q = new int[count];
+        int i = 0;
+        for (int j = 0; j < 3; j++) if (spindexer.filled[j] != '_') q[i++] = j;
+        return q;
+    }
+
+    /** Returns the first filled slot index, or 0 as fallback. */
+    private int getFirstFilledIndex() {
+        for (int i = 0; i < 3; i++) if (spindexer.filled[i] != '_') return i;
+        return 0;
+    }
 
     // -------------------- Loop timing --------------------
     public static int LOOP_WAIT_MS = 50;
 
-    // -------------------- Dynamic destinations (MIRRORED) --------------------
-    // Blue PARK_POSE: (48.400, 32.886, 180deg) -> Red: (95.600, 32.886, 0deg)
+    public static int SETTLE_TIME = 400;
+    public static double SHOOT_INDEX_DELAY_MS = 200;
+    private boolean isSettling = false;
+    private boolean shootIndexSet = false;
+
+    // -------------------- Dynamic destinations --------------------
+    // Park pose: X mirrored (144 - 44 = 100), heading flipped 180° → 0°
     public static final Pose PARK_POSE = new Pose(
             100.0,
-            14.690,
+            14.69,
             Math.toRadians(0)
     );
 
-    // Blue SHOOT_POSE: (61.000, 14.000, 180deg) -> Red: (83.000, 14.000, 0deg)
+    // Shoot pose: X mirrored (144 - 61 = 83), heading flipped 180° → 0°
     public static final Pose SHOOT_POSE = new Pose(
             83.000, 14.000, Math.toRadians(0)
     );
 
-    // -------------------- Shooter settings --------------------
-    public static double currentRPM = 3250;
-    public static double targetAngleDeg = 73; // may need mirroring depending on your turret convention
+    // -------------------- Shooter config --------------------
+    public static double currentRPM = 3300;
+    public static double targetAngleDeg = 66;
 
-    // Optional: mirrored fixed target pose (Blue target (0,144) -> Red target (144,144))
-    private final Pose targetPose = new Pose(144, 144, 0);
 
-    // -------------------- Volley / shot routine --------------------
-    private int currentVolley = 0;
+    // ------------------------------------------------------------------------
+    // init / start / loop (OpMode style)
+    // ------------------------------------------------------------------------
 
     @Override
     public void init() {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
         follower = Constants.createFollower(hardwareMap);
 
-        // Blue startPose: (64, 8, 180deg) -> Red: (80, 8, 0deg)
+        // Starting pose: X mirrored (144 - 64 = 80), heading flipped 180° → 0°
         Pose startPose = new Pose(80.000, 8.000, Math.toRadians(0));
         follower.setStartingPose(startPose);
 
-        // Subsystems
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(
@@ -105,6 +161,9 @@ public class RedFarSideAuto extends OpMode {
                 "distanceSensor",
                 colorSensor
         );
+        spindexer.setColorAtPos('X', 0);
+        spindexer.setColorAtPos('X', 1);
+        spindexer.setColorAtPos('X', 2);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
         turret = new Turret(
                 hardwareMap,
@@ -116,10 +175,8 @@ public class RedFarSideAuto extends OpMode {
                 false
         );
 
-        // Build paths
         paths = new Paths(follower);
 
-        // Startup config
         kickerServo.normal();
 
         panelsTelemetry.debug("Status", "Initialized");
@@ -133,7 +190,6 @@ public class RedFarSideAuto extends OpMode {
         stateTimer.reset();
 
         outtakeInProgress = false;
-        currentVolley = 0;
 
         turret.on();
         barIntake.spinIntake();
@@ -143,23 +199,111 @@ public class RedFarSideAuto extends OpMode {
 
     @Override
     public void loop() {
+        // Update follower
         follower.update();
 
+        // --- Drivetrain stuck detection ---
+        // If the follower is actively driving but the robot hasn't moved, go back to shoot position
+//        if (follower.isBusy() && !outtakeInProgress) {
+//            Pose cur = follower.getPose();
+//            if (lastDrivetrainPose == null) {
+//                lastDrivetrainPose = cur;
+//                drivetrainStuckTimer.reset();
+//            } else {
+//                double dist = Math.hypot(cur.getX() - lastDrivetrainPose.getX(),
+//                                         cur.getY() - lastDrivetrainPose.getY());
+//                if (dist > DRIVETRAIN_STUCK_DIST_IN) {
+//                    lastDrivetrainPose = cur;
+//                    drivetrainStuckTimer.reset();
+//                } else if (drivetrainStuckTimer.milliseconds() > DRIVETRAIN_STUCK_MS) {
+//                    // Stuck — abort current path and head to shoot position
+//                    paths.buildToShoot(follower, follower.getPose());
+//                    follower.followPath(paths.toShoot);
+//                    setState(90);
+//                }
+//            }
+//        } else {
+//            lastDrivetrainPose = null;
+//            drivetrainStuckTimer.reset();
+//        }
+
+        // Keep shooter ready
         turret.setShooterRPM(currentRPM);
         turret.goToPosition(targetAngleDeg);
         turret.on();
 
-        // Optional turret tracking
-        // turret.trackTarget(follower.getPose(), targetPose);
-
+        // Spindexer update
         spindexer.update();
 
-        if (spindexer.isFull()) {
+        // --- Spindexer stall recovery ---
+//        if (!outtakeInProgress) {
+//            switch (stallRecoveryState) {
+//                case 0: // Normal — watch for stall
+//                    boolean motorStraining = Math.abs(spindexer.getLastOutput()) > STALL_POWER_THRESHOLD;
+//                    boolean notMoving      = Math.abs(spindexer.getLastVelocity()) < STALL_VELOCITY_THRESHOLD;
+//                    boolean notAtTarget    = Math.abs(spindexer.getLastError()) > STALL_ERROR_THRESHOLD;
+//                    if (motorStraining && notMoving && notAtTarget) {
+//                        if (stallTimer.milliseconds() > STALL_DETECT_MS) {
+//                            stallSavedTarget = spindexer.getReferenceAngle();
+//                            double cur = spindexer.getCalibratedAngle();
+//                            int closest = 0;
+//                            double minDiff = Double.MAX_VALUE;
+//                            for (int i = 0; i < Spindexer.INTAKE_ANGLES.length; i++) {
+//                                double d = Math.abs(Spindexer.INTAKE_ANGLES[i] - cur);
+//                                if (d > 180) d = 360 - d;
+//                                if (d < minDiff) { minDiff = d; closest = i; }
+//                            }
+//                            spindexer.startMoveToAngle(Spindexer.INTAKE_ANGLES[closest]);
+//                            stallRecoveryState = 1;
+//                        }
+//                    } else {
+//                        stallTimer.reset();
+//                    }
+//                    break;
+//
+//                case 1: // Retreating to closest intake position
+//                    if (spindexer.isAtTarget(5.0)) {
+//                        spindexer.startMoveToAngle(stallSavedTarget);
+//                        stallRecoveryState = 2;
+//                    }
+//                    break;
+//
+//                case 2: // Returning to original target
+//                    if (spindexer.isAtTarget(5.0)) {
+//                        stallTimer.reset();
+//                        stallRecoveryState = 0;
+//                    }
+//                    break;
+//            }
+//        } else {
+//            // Reset during outtake so we don't false-trigger after
+//            stallTimer.reset();
+//            stallRecoveryState = 0;
+//        }
+
+        // Intake logic
+        // Activate when full OR when traveling to shoot with any balls loaded
+        boolean travelingToShoot = pathState == 3 || pathState == 6 || pathState == 90;
+        if ((spindexer.isFull() || (travelingToShoot && spindexer.getBalls() > 0)) && !outtakeInProgress) {
+            spinInterval++;
+            if (spinInterval < 40)
+                barIntake.spinIntake();       // let last ball settle in
+            else if (spinInterval < 50)
+                barIntake.spinOuttake();      // push overflow back out
+            else
+                barIntake.stop();
+        }
+
+        if (outtakeInProgress) {
             barIntake.stop();
         }
 
+        // Run auto state machine
         autonomousUpdate();
 
+        PoseStorage.currentPose = follower.getPose();
+
+        // Telemetry
         panelsTelemetry.debug("Match Time (s)", matchTimer.seconds());
         panelsTelemetry.debug("State", pathState);
         panelsTelemetry.debug("X", follower.getPose().getX());
@@ -169,6 +313,7 @@ public class RedFarSideAuto extends OpMode {
         panelsTelemetry.debug("Turret Angle (deg)", targetAngleDeg);
         panelsTelemetry.debug("Outtake", outtakeInProgress);
         panelsTelemetry.debug("Full", spindexer.isFull());
+        panelsTelemetry.debug("Stall Recovery", stallRecoveryState == 0 ? "Normal" : stallRecoveryState == 1 ? "Retreating" : "Returning");
         panelsTelemetry.update(telemetry);
     }
 
@@ -176,48 +321,73 @@ public class RedFarSideAuto extends OpMode {
     // Outtake routine (kick + advance x3 on delay)
     // ------------------------------------------------------------------------
 
-    private void startOuttakeRoutine() {
-        outtakeInProgress = true;
-        outtakeAdvanceCount = 0;
-        outtakeTimer.reset();
-        lastAdvanceTimeMs = 0.0;
-
-        turret.on();
-        turret.transferOn();
-
-        kickerServo.kick();
-
-        spindexer.advanceIntake();
-        outtakeAdvanceCount++;
-        lastAdvanceTimeMs = outtakeTimer.milliseconds();
+    private void startFarOuttakeRoutine() {
+        farOuttakeMode = true;
+        startOuttakeRoutine();
     }
 
-    private void handleOuttakeRoutine() {
-        double now = outtakeTimer.milliseconds();
+    private void startOuttakeRoutine() {
+        // Build queue from currently filled slots only
+        shootQueue = buildShootQueue();
+        shootQueueIndex = 0;
+        outtakeAdvanceCount = 0;
 
-        if (outtakeAdvanceCount < 3) {
-            if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
-                spindexer.advanceIntake();
-                outtakeAdvanceCount++;
-                lastAdvanceTimeMs = now;
-            }
+        outtakeInProgress = true;
+        outtakeTimer.reset();
+        lastAdvanceTime = 0;
+
+        turret.transferOn();
+
+        if (shootQueue.length == 0) {
+            // No balls to shoot — reset spindexer back to intake so the next pickup works
+            spindexer.setIntakeIndex(0);
+            barIntake.spinIntake();
+            spinInterval = 0;
+            farOuttakeMode = false;
+            outtakeInProgress = false;
             return;
         }
 
-        if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
-            kickerServo.normal();
-            spindexer.clearTracking();
-            turret.transferOff();
-            barIntake.spinIntake();
-            outtakeInProgress = false;
+        // Position to first filled slot, then kick
+        spindexer.setShootIndex(shootQueue[0]);
+        kickerServo.kick();
+        lastAdvanceTime = outtakeTimer.milliseconds();
+    }
+
+    private void handleOuttakeRoutine() {
+        double currentTime = outtakeTimer.milliseconds();
+
+        int advancesNeeded = shootQueue.length - 1; // one advanceShoot per additional filled slot
+
+        if (outtakeAdvanceCount < advancesNeeded) {
+
+            double delay = farOuttakeMode ? FAR_OUTTAKE_DELAY_MS : OUTTAKE_DELAY_MS;
+            if (currentTime - lastAdvanceTime >= delay) {
+                spindexer.advanceShoot();
+                outtakeAdvanceCount++;
+                lastAdvanceTime = currentTime;
+            }
+        } else {
+            // All filled slots shot — clean up
+            double cleanupDelay = farOuttakeMode ? FAR_OUTTAKE_DELAY_MS : OUTTAKE_DELAY_MS;
+            if (currentTime - lastAdvanceTime >= cleanupDelay) {
+                kickerServo.normal();
+                spindexer.clearTracking();
+                barIntake.spinIntake();
+                spindexer.setIntakeIndex(0);
+                spinInterval = 0;
+                farOuttakeMode = false;
+                outtakeInProgress = false;
+            }
         }
     }
 
     // ------------------------------------------------------------------------
-    // State machine (same logic)
+    // State machine (far-side strategy)
     // ------------------------------------------------------------------------
 
     private void autonomousUpdate() {
+        // If outtaking, block path transitions
         if (outtakeInProgress) {
             handleOuttakeRoutine();
             return;
@@ -225,16 +395,19 @@ public class RedFarSideAuto extends OpMode {
 
         switch (pathState) {
 
+            // ------------------------------------------------------------
+            // 0: Preset Shot (shoot in place)
+            // ------------------------------------------------------------
             case 0:
-                // Turret tracked-angle helpers were removed from Turret.
-                // For now, treat the turret as "ready" when shooter is up to speed.
-                if (turret.getShooterRPM() > 3300) {
-                    startOuttakeRoutine();
+                spindexer.setShootIndex(0);
+                if (turret.getShooterRPM() > 3400) {
+                    startFarOuttakeRoutine();
                     setState(1);
                 }
                 break;
 
             case 1:
+                // After preset volley completes, go pickup1
                 if (!outtakeInProgress) {
                     follower.followPath(paths.pickup1);
                     waitTimer.reset();
@@ -242,17 +415,31 @@ public class RedFarSideAuto extends OpMode {
                 }
                 break;
 
+            // ------------------------------------------------------------
+            // Cycle 1: pickup1 -> short wait -> shoot1 -> volley -> pickup2
+            // ------------------------------------------------------------
             case 2:
-                if (!follower.isBusy()) {
+                if (!follower.isBusy() && stateTimer.milliseconds() > 2500) {
                     follower.followPath(paths.shoot1);
                     setState(3);
                 }
                 break;
 
             case 3:
+                // Pre-position to first filled slot while en route (not before path starts)
+                if (!shootIndexSet && stateTimer.milliseconds() > SHOOT_INDEX_DELAY_MS) {
+                    spindexer.setShootIndex(getFirstFilledIndex());
+                    shootIndexSet = true;
+                }
                 if (!follower.isBusy()) {
-                    startOuttakeRoutine();
-                    setState(4);
+                    if (!isSettling) {
+                        isSettling = true;
+                        waitTimer.reset();
+                    }
+                    if (waitTimer.milliseconds() > SETTLE_TIME) {
+                        startOuttakeRoutine();
+                        setState(4);
+                    }
                 }
                 break;
 
@@ -264,46 +451,66 @@ public class RedFarSideAuto extends OpMode {
                 }
                 break;
 
+            // ------------------------------------------------------------
+            // Cycle 2: pickup2 -> wait -> shoot2 -> volley -> path5
+            // ------------------------------------------------------------
             case 5:
-                if (!follower.isBusy()) {
+                if (!follower.isBusy() && stateTimer.milliseconds() > 2500) {
                     follower.followPath(paths.shoot2);
                     setState(6);
                 }
                 break;
 
             case 6:
+                if (!shootIndexSet && stateTimer.milliseconds() > SHOOT_INDEX_DELAY_MS) {
+                    spindexer.setShootIndex(getFirstFilledIndex());
+                    shootIndexSet = true;
+                }
                 if (!follower.isBusy()) {
-                    startOuttakeRoutine();
-                    setState(7);
+                    if (!isSettling) {
+                        isSettling = true;
+                        waitTimer.reset();
+                    }
+                    if (waitTimer.milliseconds() > SETTLE_TIME) {
+                        startOuttakeRoutine();
+                        setState(7);
+                    }
                 }
                 break;
 
             case 7:
                 if (!outtakeInProgress) {
+                    // Begin loop: go to path5 first
                     follower.followPath(paths.path5);
                     waitTimer.reset();
                     setState(8);
                 }
                 break;
 
+            // ------------------------------------------------------------
+            // Loop: path5 <-> path6 with priority checks
+            // ------------------------------------------------------------
             case 8:
-                if (!follower.isBusy()) {
-                    if (matchTimer.seconds() > 25.0) {
-                        paths.buildToPark(follower, follower.getPose());
-                        follower.followPath(paths.toPark);
-                        setState(98);
-                        break;
-                    }
+                if (!follower.isBusy() || stateTimer.milliseconds() > 3000) { // if stuck for 3s, re-evaluate (prevents softlock if something goes wrong in the loop)
 
                     if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
 
+                    // Time check: stop heading to shoot if time is nearly up, stay outside
+                    if (matchTimer.seconds() > LOOP_STOP_TIME_S) {
+                        setState(99);
+                        break;
+                    }
+
+                    // If balls to shoot, go to shoot position
                     if (spindexer.getBalls() > 0) {
+                        retryCount = 0;
                         paths.buildToShoot(follower, follower.getPose());
                         follower.followPath(paths.toShoot);
                         setState(90);
                         break;
                     }
 
+                    // Otherwise continue loop to path6
                     follower.followPath(paths.path6);
                     waitTimer.reset();
                     setState(9);
@@ -312,43 +519,73 @@ public class RedFarSideAuto extends OpMode {
 
             case 9:
                 if (!follower.isBusy()) {
-                    if (matchTimer.seconds() > 25.0) {
-                        paths.buildToPark(follower, follower.getPose());
-                        follower.followPath(paths.toPark);
-                        setState(98);
-                        break;
-                    }
 
                     if (waitTimer.milliseconds() < LOOP_WAIT_MS) return;
 
+                    // Time check: stop heading to shoot if time is nearly up, stay outside
+                    if (matchTimer.seconds() > LOOP_STOP_TIME_S) {
+                        setState(99);
+                        break;
+                    }
+
+                    // If balls to shoot, go to shoot position
                     if (spindexer.getBalls() > 0) {
+                        retryCount = 0;
                         paths.buildToShoot(follower, follower.getPose());
                         follower.followPath(paths.toShoot);
                         setState(90);
                         break;
                     }
 
+                    // 0 balls — retry at alternate Y (9 on odd retry, 35 on even retry)
+                    retryCount++;
+                    double retryY = (retryCount % 2 == 1) ? 9.0 : 35.0;
+                    paths.buildRetryIntakePath(follower, follower.getPose(), retryY);
+                    // IMPORTANT: also rebuild path6 so it starts from the same Y as the retry intake point
+                    paths.buildPath6(follower, retryY);
                     follower.followPath(paths.path55);
                     waitTimer.reset();
                     setState(8);
                 }
                 break;
 
+            // ------------------------------------------------------------
+            // Go to shoot because full
+            // ------------------------------------------------------------
             case 90:
+                if (!shootIndexSet && stateTimer.milliseconds() > SHOOT_INDEX_DELAY_MS) {
+                    spindexer.setShootIndex(getFirstFilledIndex());
+                    shootIndexSet = true;
+                }
                 if (!follower.isBusy()) {
-                    startOuttakeRoutine();
-                    setState(91);
+                    if (!isSettling) {
+                        isSettling = true;
+                        waitTimer.reset();
+                    }
+                    if (waitTimer.milliseconds() > SETTLE_TIME) {
+                        startOuttakeRoutine();
+                        setState(91);
+                    }
                 }
                 break;
 
             case 91:
                 if (!outtakeInProgress) {
+                    // If time is nearly up, drive back to X > 94 rather than re-entering the loop
+                    if (matchTimer.seconds() > LOOP_STOP_TIME_S) {
+                        follower.followPath(paths.driveBack);
+                        setState(98);
+                        break;
+                    }
                     follower.followPath(paths.path5);
                     waitTimer.reset();
                     setState(8);
                 }
                 break;
 
+            // ------------------------------------------------------------
+            // Drive back to safe zone then idle
+            // ------------------------------------------------------------
             case 98:
                 if (!follower.isBusy()) {
                     setState(99);
@@ -356,26 +593,28 @@ public class RedFarSideAuto extends OpMode {
                 break;
 
             case 99:
+                // End
                 break;
         }
     }
 
     // ------------------------------------------------------------------------
-    // Paths class (MIRRORED GEOMETRY)
+    // Paths class (X coordinates mirrored: 144 - blueX; headings flipped 180° → 0°)
     // ------------------------------------------------------------------------
 
     public static class Paths {
         public PathChain pickup1, shoot1, pickup2, shoot2, path5, path55, path6;
 
+        // Dynamic paths (built at runtime)
         public PathChain toShoot;
-        public PathChain toPark;
+
+        // End-of-match escape: drives from shoot pose back to X > 94
+        public PathChain driveBack;
 
         public Paths(Follower follower) {
-
-            // pickup1:
-            // Blue: (64,8)->(63,41)->(10,35) with 180->180
-            // Red : (80,8)->(81,41)->(134,35) with 0->0
-            pickup1 = follower.pathBuilder()
+            // pickup1: blue (64,8)→(63,41)→(10,35) | red (80,8)→(81,41)→(134,35)
+            pickup1 = follower
+                    .pathBuilder()
                     .addPath(new BezierCurve(
                             new Pose(80.000, 8.000),
                             new Pose(81.000, 41.000),
@@ -384,10 +623,9 @@ public class RedFarSideAuto extends OpMode {
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
-            // shoot1:
-            // Blue: (10,35)->(61,14)
-            // Red : (134,35)->(83,14)
-            shoot1 = follower.pathBuilder()
+            // shoot1: blue (10,35)→(61,14) | red (134,35)→(83,14)
+            shoot1 = follower
+                    .pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(134.000, 35.000),
                             new Pose(83.000, 14.000)
@@ -395,10 +633,10 @@ public class RedFarSideAuto extends OpMode {
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
-            // pickup2:
-            // Blue: (61,14)->(13.555,4.401)->(23.76,19.89)->(10,7.746)
-            // Red : (83,14)->(130.445,4.401)->(120.240,19.89)->(134,7.746)
-            pickup2 = follower.pathBuilder()
+            // pickup2: blue (61,14)→(13.555,4.401)→(23.76,19.89)→(10,7.746)
+            //           red  (83,14)→(130.445,4.401)→(120.24,19.89)→(134,7.746)
+            pickup2 = follower
+                    .pathBuilder()
                     .addPath(new BezierCurve(
                             new Pose(83.000, 14.000),
                             new Pose(130.445, 4.401),
@@ -408,10 +646,9 @@ public class RedFarSideAuto extends OpMode {
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
-            // shoot2:
-            // Blue: (10,7.746)->(61,14)
-            // Red : (134,7.746)->(83,14)
-            shoot2 = follower.pathBuilder()
+            // shoot2: blue (10,7.746)→(61,14) | red (134,7.746)→(83,14)
+            shoot2 = follower
+                    .pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(134.000, 7.746),
                             new Pose(83.000, 14.000)
@@ -419,35 +656,66 @@ public class RedFarSideAuto extends OpMode {
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
-            // path5:
-            // Blue: (61,14)->(10,12.851)
-            // Red : (83,14)->(134,12.851)
-            path5 = follower.pathBuilder()
+            // path5: blue (61,14)→(10,18) | red (83,14)→(134,18)
+            path5 = follower
+                    .pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(83.000, 14.000),
-                            new Pose(134.000, 12.851)
+                            new Pose(134.000, 18.000)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
-            // path55:
-            // Blue: (9+16,12.851)->(10,12.851) i.e. (25,12.851)->(10,12.851)
-            // Red : (119,12.851)->(134,12.851)
+            // path55: blue (25,24)→(10,18) | red (119,24)→(134,18)
+            path55 = follower
+                    .pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(119.000, 24.000),
+                            new Pose(134.000, 18.000)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                    .build();
+
+            // path6: blue (10,18)→(25,14) | red (134,18)→(119,14)
+            path6 = follower
+                    .pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(134.000, 18.000),
+                            new Pose(119.000, 14.000)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                    .build();
+
+            // driveBack: blue (61,14)→(35,14) | red (83,14)→(109,14)
+            driveBack = follower
+                    .pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(83.000, 14.000),
+                            new Pose(109.000, 14.000)
+                    ))
+                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                    .build();
+        }
+
+        /** Rebuilds path55 to target the intake at a different Y (for 0-ball retries). */
+        public void buildRetryIntakePath(Follower follower, Pose currentPose, double endY) {
             path55 = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(119.000, 12.851),
-                            new Pose(134.000, 12.851)
+                            currentPose,
+                            new Pose(134.000, endY)  // blue 10 → red 134
                     ))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+                    .setLinearHeadingInterpolation(currentPose.getHeading(), Math.toRadians(0))
                     .build();
+        }
 
-            // path6:
-            // Blue: (10,12.851)->(60.733,13.731)
-            // Red : (134,12.851)->(83.267,13.731)
+        /** Rebuilds path6 to connect from the dynamic intake Y (used in retries). */
+        public void buildPath6(Follower follower, double startY) {
+            // blue: (10, startY) -> (25, 14)
+            // red : (134, startY) -> (119, 14)
             path6 = follower.pathBuilder()
                     .addPath(new BezierLine(
-                            new Pose(134.000, 12.851),
-                            new Pose(83.267, 13.731)
+                            new Pose(134.000, startY),
+                            new Pose(119.000, 14.000)
                     ))
                     .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
@@ -457,14 +725,6 @@ public class RedFarSideAuto extends OpMode {
             toShoot = follower.pathBuilder()
                     .addPath(new BezierLine(currentPose, SHOOT_POSE))
                     .setLinearHeadingInterpolation(currentPose.getHeading(), SHOOT_POSE.getHeading())
-                    .build();
-        }
-
-        public void buildToPark(Follower follower, Pose currentPose) {
-            toPark = follower.pathBuilder()
-                    .addPath(new BezierLine(currentPose, PARK_POSE))
-                    .addPath(new BezierLine(currentPose, PARK_POSE)) // kept as-is (you had it twice)
-                    .setLinearHeadingInterpolation(currentPose.getHeading(), PARK_POSE.getHeading())
                     .build();
         }
     }

@@ -23,6 +23,9 @@ public class Turret {
     private double farRPM = 3000.0;
     private double transferPower = 1;
 
+    private static final double ANALOG_MAX_VOLTAGE = 3.3;
+    private double lastCommandedAngle = 0.0;
+
     // PID Coefficients for trackTarget
     public static double Kp = 0.02;
     public static double Ki = 0.0;
@@ -33,7 +36,7 @@ public class Turret {
 
     // Configurable offset - Voltage reading when turret is physically at 180 (backward)
     // Tune this! Example: If sensor reads 2.5V at 180 degrees, set this to 2.5
-    private final double kP_Shooter = 90.0;
+    private final double kP_Shooter = 100.0;
     private final double kI_Shooter = 0.0;
     private final double kD_Shooter = 2.1;
     private final double kF_Shooter = 18.0;
@@ -50,7 +53,7 @@ public class Turret {
         } else {
             shooterMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         }
-        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         turretServo = hardwareMap.get(Servo.class, turretName);
 
@@ -127,8 +130,33 @@ public class Turret {
     }
 
     public void goToPosition(double targetAngleDegrees) {
-        turretServo.setPosition(1 - 4*targetAngleDegrees / 1800);
+        lastCommandedAngle = targetAngleDegrees;
+        double mapped = targetAngleDegrees * (255.0 / 360.0);
+        turretServo.setPosition(1 - (mapped / 255.0));
     }
+
+    public double getEncoderAngle() {
+        double v = turretEncoder.getVoltage();
+        if (v < 0) v = 0;
+        if (v > ANALOG_MAX_VOLTAGE) v = ANALOG_MAX_VOLTAGE;
+        return (v / ANALOG_MAX_VOLTAGE) * 360.0;
+    }
+
+    public double getEncoderOffset() {
+        double diff = lastCommandedAngle - getEncoderAngle();
+        while (diff > 180) diff -= 360;
+        while (diff < -180) diff += 360;
+        return diff;
+    }
+
+    public double getCurrentError() {
+        return getEncoderOffset();
+    }
+
+    public void turretServo(double position) {
+        turretServo.setPosition(position);
+    }
+
 
     private double normalizeAngle(double angle) {
         angle = angle % 360;

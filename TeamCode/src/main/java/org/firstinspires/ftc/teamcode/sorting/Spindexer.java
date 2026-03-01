@@ -22,10 +22,10 @@ public class Spindexer {
 
     // --- PIDF Coefficients ---
     // Start with these. If it oscillates, lower Kp. If it stops short, raise kStatic.
-    public static double Kp = 0.007;
+    public static double Kp = 0.0111;
     public static double Ki = 0.001;
-    public static double Kd = 0.0006;
-    public static double kStatic = 0.055; // Minimum power to overcome friction
+    public static double Kd = 0.0008;
+    public static double kStatic = 0.048; // Minimum power to overcome friction
     public ColorSensor colorSensor;
 
     // PID state
@@ -194,6 +194,8 @@ public class Spindexer {
     public double getLastOutput() { return lastOutput; }
     public double getLastDt() { return lastDt; }
 
+
+public double getReferenceAngle() { return referenceAngle; }
 
 // --- Tracking & Positions ---
 
