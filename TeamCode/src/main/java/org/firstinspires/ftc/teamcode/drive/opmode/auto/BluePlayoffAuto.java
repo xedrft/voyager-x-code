@@ -16,6 +16,7 @@ import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
+import org.firstinspires.ftc.teamcode.shooting.Shooting;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
@@ -39,6 +40,7 @@ public class BluePlayoffAuto extends OpMode {
     private KickerServo kickerServo;
     private Turret turret;
     private String currentBarIntakeState = "stop";
+    private Shooting shooting;
 
     // -------------------- Config (tune in Panels) --------------------
     public static double SCAN_TURRET_DEG = 250;
@@ -115,6 +117,7 @@ public class BluePlayoffAuto extends OpMode {
         // Startup config
         kickerServo.normal();
         turret.setShooterRPM(SHOOT_RPM);
+        shooting = createShooting();
 
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
@@ -127,9 +130,8 @@ public class BluePlayoffAuto extends OpMode {
 
         stateTimer.reset();
 
-        turret.on();
-        turret.transferOn();
-        turret.setShooterRPM(SHOOT_RPM);
+        shooting.onStart();
+        shooting.setOuttakeDelayMs(OUTTAKE_DELAY_MS);
         spindexer.setShootIndex(1);
         currentBarIntakeState = "in";
     }
@@ -140,9 +142,9 @@ public class BluePlayoffAuto extends OpMode {
         follower.update();
 
         // 2) Always keep shooter ready
-        turret.on();
-        turret.setShooterRPM(SHOOT_RPM);
-        turret.goToPosition(targetAngle);
+        shooting.setOuttakeDelayMs(OUTTAKE_DELAY_MS);
+        shooting.updateFixedShot(SHOOT_RPM, targetAngle);
+        handleOuttakeRoutine();
 
         // 3) Update spindexer
         spindexer.update();
@@ -192,7 +194,6 @@ public class BluePlayoffAuto extends OpMode {
     private void autonomousUpdate() {
         // Outtake blocks transitions
         if (outtakeInProgress) {
-            handleOuttakeRoutine();
             return;
         }
 
@@ -341,37 +342,30 @@ public class BluePlayoffAuto extends OpMode {
     }
 
     private void startOuttakeRoutine() {
-        outtakeInProgress = true;
-        outtakeAdvanceCount = 0;
-        outtakeTimer.reset();
-        lastAdvanceTime = 0;
-
-        turret.transferOn();
         currentBarIntakeState = "stop";
-
-        kickerServo.kick();
-        lastAdvanceTime = outtakeTimer.milliseconds();
+        shooting.setOuttakeDelayMs(OUTTAKE_DELAY_MS);
+        shooting.requestFullOuttake();
+        outtakeInProgress = shooting.isOuttakeInProgress();
     }
 
     private void handleOuttakeRoutine() {
-        double currentTime = outtakeTimer.milliseconds();
-
-        if (outtakeAdvanceCount < 2) {
-            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 3 : OUTTAKE_DELAY_MS)) {
-                spindexer.advanceShoot();
-                outtakeAdvanceCount++;
-                lastAdvanceTime = currentTime;
-            }
-        } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
-                kickerServo.normal();
-                spindexer.clearTracking();
-                currentBarIntakeState = "in";
-                spindexer.setIntakeIndex(0);
-                spinInterval = 0;
-                outtakeInProgress = false;
-            }
+        if (shooting.consumeOuttakeFinished()) {
+            currentBarIntakeState = "in";
+            spindexer.setIntakeIndex(0);
+            spinInterval = 0;
         }
+        outtakeInProgress = shooting.isOuttakeInProgress();
+    }
+
+    private Shooting createShooting() {
+        Shooting.Config config = new Shooting.Config();
+        config.manageIdleFullPulse = false;
+        config.forceShootIndexOneWhenFullIdle = false;
+        config.stopBarIntakeDuringOuttake = false;
+        config.spinBarIntakeOnOuttakeFinish = false;
+        config.firstAdvanceDelayDivisor = 3.0;
+        config.outtakeDelayMs = OUTTAKE_DELAY_MS;
+        return new Shooting(turret, kickerServo, spindexer, barIntake, config);
     }
 
     // -----------------------------------------------------------------------------------------

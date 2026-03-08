@@ -14,9 +14,11 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
+import org.firstinspires.ftc.teamcode.shooting.Shooting;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 
 @Autonomous(name = "Red Far Side Auto (OpMode)", group = "Autonomous")
@@ -34,6 +36,7 @@ public class RedFarSideAuto extends OpMode {
     private Spindexer spindexer;
     private KickerServo kickerServo;
     private Turret turret;
+    private Shooting shooting;
 
     // -------------------- Timers --------------------
     private final ElapsedTime matchTimer = new ElapsedTime();
@@ -121,6 +124,7 @@ public class RedFarSideAuto extends OpMode {
 
         // Startup config
         kickerServo.normal();
+        shooting = createShooting();
 
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
@@ -135,7 +139,7 @@ public class RedFarSideAuto extends OpMode {
         outtakeInProgress = false;
         currentVolley = 0;
 
-        turret.on();
+        shooting.onStart();
         barIntake.spinIntake();
 
         setState(0);
@@ -145,12 +149,9 @@ public class RedFarSideAuto extends OpMode {
     public void loop() {
         follower.update();
 
-        turret.setShooterRPM(currentRPM);
-        turret.goToPosition(targetAngleDeg);
-        turret.on();
-
-        // Optional turret tracking
-        // turret.trackTarget(follower.getPose(), targetPose);
+        shooting.setOuttakeDelayMs(OUTTAKE_DELAY_MS);
+        shooting.updateFixedShot(currentRPM, targetAngleDeg);
+        handleOuttakeRoutine();
 
         spindexer.update();
 
@@ -159,6 +160,7 @@ public class RedFarSideAuto extends OpMode {
         }
 
         autonomousUpdate();
+        PoseStorage.currentPose = follower.getPose();
 
         panelsTelemetry.debug("Match Time (s)", matchTimer.seconds());
         panelsTelemetry.debug("State", pathState);
@@ -177,40 +179,13 @@ public class RedFarSideAuto extends OpMode {
     // ------------------------------------------------------------------------
 
     private void startOuttakeRoutine() {
-        outtakeInProgress = true;
-        outtakeAdvanceCount = 0;
-        outtakeTimer.reset();
-        lastAdvanceTimeMs = 0.0;
-
-        turret.on();
-        turret.transferOn();
-
-        kickerServo.kick();
-
-        spindexer.advanceIntake();
-        outtakeAdvanceCount++;
-        lastAdvanceTimeMs = outtakeTimer.milliseconds();
+        shooting.setOuttakeDelayMs(OUTTAKE_DELAY_MS);
+        shooting.requestFullOuttake();
+        outtakeInProgress = shooting.isOuttakeInProgress();
     }
 
     private void handleOuttakeRoutine() {
-        double now = outtakeTimer.milliseconds();
-
-        if (outtakeAdvanceCount < 3) {
-            if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
-                spindexer.advanceIntake();
-                outtakeAdvanceCount++;
-                lastAdvanceTimeMs = now;
-            }
-            return;
-        }
-
-        if (now - lastAdvanceTimeMs >= OUTTAKE_DELAY_MS) {
-            kickerServo.normal();
-            spindexer.clearTracking();
-            turret.transferOff();
-            barIntake.spinIntake();
-            outtakeInProgress = false;
-        }
+        outtakeInProgress = shooting.isOuttakeInProgress();
     }
 
     // ------------------------------------------------------------------------
@@ -219,7 +194,6 @@ public class RedFarSideAuto extends OpMode {
 
     private void autonomousUpdate() {
         if (outtakeInProgress) {
-            handleOuttakeRoutine();
             return;
         }
 
@@ -467,5 +441,20 @@ public class RedFarSideAuto extends OpMode {
                     .setLinearHeadingInterpolation(currentPose.getHeading(), PARK_POSE.getHeading())
                     .build();
         }
+    }
+
+    private Shooting createShooting() {
+        Shooting.Config config = new Shooting.Config();
+        config.manageIdleFullPulse = false;
+        config.forceShootIndexOneWhenFullIdle = false;
+        config.stopBarIntakeDuringOuttake = false;
+        config.spinBarIntakeOnOuttakeFinish = true;
+        config.firstAdvanceDelayDivisor = 1.0;
+        config.outtakeDelayMs = OUTTAKE_DELAY_MS;
+        config.advancesPerOuttake = 3;
+        config.immediateAdvanceOnOuttakeStart = true;
+        config.useShootAdvanceMethod = false;
+        config.transferOffOnOuttakeFinish = true;
+        return new Shooting(turret, kickerServo, spindexer, barIntake, config);
     }
 }
