@@ -53,18 +53,6 @@ public class Shooting {
 
         /** Target pose for aiming / distance calculations. */
         public Pose targetPose = new Pose(0, 144, 0);
-
-        /** Number of spindexer advances to perform during a full outtake. */
-        public int advancesPerOuttake = 2;
-
-        /** If true, perform one advance immediately when full outtake starts. */
-        public boolean immediateAdvanceOnOuttakeStart = false;
-
-        /** If true use advanceShoot(); otherwise use advanceIntake(). */
-        public boolean useShootAdvanceMethod = true;
-
-        /** If true, turn transfer off when a full outtake finishes. */
-        public boolean transferOffOnOuttakeFinish = false;
     }
 
     private final Turret turret;
@@ -303,24 +291,18 @@ public class Shooting {
         turret.transferOn();
         kickerServo.kick();
         lastAdvanceTimeMs = outtakeTimer.milliseconds();
-
-        if (config.immediateAdvanceOnOuttakeStart) {
-            performConfiguredAdvance();
-            outtakeAdvanceCount++;
-            lastAdvanceTimeMs = outtakeTimer.milliseconds();
-        }
     }
 
     private void handleOuttakeRoutine() {
         double currentTimeMs = outtakeTimer.milliseconds();
 
-        if (outtakeAdvanceCount < config.advancesPerOuttake) {
+        if (outtakeAdvanceCount < 2) {
             double waitMs = (outtakeAdvanceCount == 0)
                     ? (config.outtakeDelayMs / Math.max(1.0, config.firstAdvanceDelayDivisor))
                     : config.outtakeDelayMs;
 
             if (currentTimeMs - lastAdvanceTimeMs >= waitMs) {
-                performConfiguredAdvance();
+                spindexer.advanceShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTimeMs = currentTimeMs;
             }
@@ -328,9 +310,6 @@ public class Shooting {
             if (currentTimeMs - lastAdvanceTimeMs >= config.outtakeDelayMs) {
                 kickerServo.normal();
                 spindexer.clearTracking();
-                if (config.transferOffOnOuttakeFinish) {
-                    turret.transferOff();
-                }
                 if (config.spinBarIntakeOnOuttakeFinish) {
                     barIntake.spinIntake();
                 }
@@ -388,13 +367,5 @@ public class Shooting {
 
     public void setFirstAdvanceDelayDivisor(double divisor) {
         config.firstAdvanceDelayDivisor = Math.max(1.0, divisor);
-    }
-
-    private void performConfiguredAdvance() {
-        if (config.useShootAdvanceMethod) {
-            spindexer.advanceShoot();
-        } else {
-            spindexer.advanceIntake();
-        }
     }
 }
