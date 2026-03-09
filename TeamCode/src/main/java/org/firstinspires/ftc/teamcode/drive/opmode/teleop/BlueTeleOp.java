@@ -11,7 +11,6 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
@@ -24,8 +23,6 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 @TeleOp(name = "Blue TeleOp", group = "TeleOp")
 public class BlueTeleOp extends OpMode {
     private Follower follower;
-    private LockMode lockMode;
-    private boolean isLocked = false;
 
     private BarIntake barIntake;
     private Servo ledHeadlight;
@@ -38,16 +35,11 @@ public class BlueTeleOp extends OpMode {
     private GoBildaPinpointDriver pinpoint;
 
     private Shooting shooting;
-    private Shooting.Config shootConfig;
 
     private static final double OFFSET = Math.toRadians(180.0);
     private final Pose targetPose = new Pose(0, 144, 0);
 
-    private int offset_turret = 0;
-    private boolean rpmCap = true;
     private boolean lastFull = false;
-    private int closeCap = 2600;
-    private double outtakeDelayMs = 300;
 
     private boolean goingToPosition = false;
     private static Pose GO_TO_TARGET = new Pose(18.53, 58.42, 2.67);
@@ -57,7 +49,6 @@ public class BlueTeleOp extends OpMode {
         expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
-        lockMode = new LockMode(follower);
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         ColorSensor colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
@@ -93,21 +84,14 @@ public class BlueTeleOp extends OpMode {
         double loopMs = loopTimer.milliseconds();
         loopTimer.reset();
 
-        isLocked = shooting.wantsDriveLock();
         follower.update();
-
-        if (isLocked) {
-            lockMode.lockPosition();
-        } else {
-            lockMode.unlockPosition();
-            follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y,
-                    -gamepad1.left_stick_x,
-                    -gamepad1.right_stick_x,
-                    false,
-                    OFFSET
-            );
-        }
+        follower.setTeleOpDrive(
+                -gamepad1.left_stick_y,
+                -gamepad1.left_stick_x,
+                -gamepad1.right_stick_x,
+                false,
+                OFFSET
+        );
 
         if (gamepad1.aWasPressed()) {
             Pose cur = follower.getPose();
@@ -136,9 +120,6 @@ public class BlueTeleOp extends OpMode {
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
             shooting = createShooting();
             shooting.onStart();
-            pinpoint.recalibrateIMU();
-            isLocked = false;
-            lockMode.unlockPosition();
         }
 
         if (gamepad1.rightBumperWasPressed()) {
@@ -153,28 +134,13 @@ public class BlueTeleOp extends OpMode {
         }
 
         if (gamepad1.dpadDownWasPressed()) {
-            rpmCap = !rpmCap;
+            shooting.toggleFarShootingMode();
             gamepad1.rumble(200);
-        }
-
-        if (!rpmCap) {
-            outtakeDelayMs = 600;
-            offset_turret = -7;
-        } else {
-            outtakeDelayMs = 300;
-            offset_turret = 0;
         }
 
         if (gamepad1.dpadLeftWasPressed()) {
-            closeCap = (closeCap == 2800) ? 2600 : 2800;
             gamepad1.rumble(200);
         }
-
-        shooting.setTargetPose(targetPose);
-        shooting.setRpmCapEnabled(rpmCap);
-        shooting.setCloseCapRpm(closeCap);
-        shooting.setOuttakeDelayMs(outtakeDelayMs);
-        shooting.setTurretOffsetDeg(offset_turret);
 
         if (gamepad1.left_trigger > 0.5 && !shooting.isOuttakeInProgress()) {
             shooting.requestFullOuttake();
@@ -187,7 +153,6 @@ public class BlueTeleOp extends OpMode {
         }
 
         shooting.update(follower.getPose());
-        isLocked = shooting.wantsDriveLock();
 
         if (spindexer.isFull()) {
             ledHeadlight.setPosition(1.0);
@@ -202,7 +167,6 @@ public class BlueTeleOp extends OpMode {
 
         spindexer.update();
 
-         telemetry.addData("Lock Mode Active", isLocked);
          telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
          telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")");
          telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
@@ -216,13 +180,8 @@ public class BlueTeleOp extends OpMode {
     }
 
     private Shooting createShooting() {
-        shootConfig = new Shooting.Config();
-        shootConfig.targetPose = targetPose;
-        shootConfig.rpmCapEnabled = rpmCap;
-        shootConfig.closeCapRpm = closeCap;
-        shootConfig.outtakeDelayMs = outtakeDelayMs;
-        shootConfig.turretOffsetDeg = offset_turret;
-        return new Shooting(turret, kickerServo, spindexer, barIntake, shootConfig);
+        Shooting.Config config = new Shooting.Config();
+        config.targetPose = targetPose;
+        return new Shooting(turret, kickerServo, spindexer, barIntake, config);
     }
 }
-

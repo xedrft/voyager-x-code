@@ -149,8 +149,6 @@ public class RedFarSideAuto extends OpMode {
         turret.goToPosition(targetAngleDeg);
         turret.on();
 
-        // Optional turret tracking
-        // turret.trackTarget(follower.getPose(), targetPose);
 
         spindexer.update();
 

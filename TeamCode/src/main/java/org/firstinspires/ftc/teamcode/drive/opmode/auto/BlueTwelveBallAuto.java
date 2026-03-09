@@ -18,7 +18,6 @@ import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
-import org.firstinspires.ftc.teamcode.shooting.Shooting;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
@@ -41,7 +40,6 @@ public class BlueTwelveBallAuto extends OpMode {
     private Spindexer spindexer;
     private KickerServo kickerServo;
     private Turret turret;
-    private Shooting shooting;
 
     // -------------------- Motifs --------------------
     private Limelight3A limelight;
@@ -151,7 +149,6 @@ public class BlueTwelveBallAuto extends OpMode {
         // Startup config
         kickerServo.normal();
         turret.setShooterRPM(SHOOT_RPM);
-        shooting = createShooting();
 
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
@@ -165,8 +162,9 @@ public class BlueTwelveBallAuto extends OpMode {
         stateTimer.reset();
         scanTimer.reset();
 
-        shooting.onStart();
-        shooting.setOuttakeDelayMs(OUTTAKE_DELAY_MS);
+        turret.on();
+        turret.transferOn();
+        turret.setShooterRPM(SHOOT_RPM);
         spindexer.setShootIndex(1);
     }
 
@@ -175,10 +173,10 @@ public class BlueTwelveBallAuto extends OpMode {
         // 1) Always update follower first
         follower.update();
 
-        // 2) Always keep shooter ready through shared Shooting controller
-        shooting.setOuttakeDelayMs(OUTTAKE_DELAY_MS);
-        shooting.updateFixedShot(SHOOT_RPM, targetAngle);
-        handleOuttakeRoutine();
+        // 2) Always keep shooter ready
+        turret.on();
+        turret.setShooterRPM(SHOOT_RPM);
+        turret.goToPosition(targetAngle);
 
         // 3) Update spindexer and run motif classification
         spindexer.update();
@@ -232,6 +230,7 @@ public class BlueTwelveBallAuto extends OpMode {
     private void autonomousUpdate() {
         // Outtake blocks transitions; Shooting advances it from loop().
         if (outtakeInProgress) {
+            handleOuttakeRoutine();
             return;
         }
 
@@ -436,30 +435,37 @@ public class BlueTwelveBallAuto extends OpMode {
     }
 
     private void startOuttakeRoutine() {
+        outtakeInProgress = true;
+        outtakeAdvanceCount = 0;
+        outtakeTimer.reset();
+        lastAdvanceTime = 0;
+
+        turret.transferOn();
         currentBarIntakeState = "stop";
-        shooting.setOuttakeDelayMs(OUTTAKE_DELAY_MS);
-        shooting.requestFullOuttake();
-        outtakeInProgress = shooting.isOuttakeInProgress();
+
+        kickerServo.kick();
+        lastAdvanceTime = outtakeTimer.milliseconds();
     }
 
     private void handleOuttakeRoutine() {
-        if (shooting.consumeOuttakeFinished()) {
-            currentBarIntakeState = "in";
-            spindexer.setIntakeIndex(0);
-            spinInterval = 0;
-        }
-        outtakeInProgress = shooting.isOuttakeInProgress();
-    }
+        double currentTime = outtakeTimer.milliseconds();
 
-    private Shooting createShooting() {
-        Shooting.Config config = new Shooting.Config();
-        config.manageIdleFullPulse = false;
-        config.forceShootIndexOneWhenFullIdle = false;
-        config.stopBarIntakeDuringOuttake = false;
-        config.spinBarIntakeOnOuttakeFinish = false;
-        config.firstAdvanceDelayDivisor = 2.0;
-        config.outtakeDelayMs = OUTTAKE_DELAY_MS;
-        return new Shooting(turret, kickerServo, spindexer, barIntake, config);
+        if (outtakeAdvanceCount < 2) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+                spindexer.advanceShoot();
+                outtakeAdvanceCount++;
+                lastAdvanceTime = currentTime;
+            }
+        } else {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
+                kickerServo.normal();
+                spindexer.clearTracking();
+                currentBarIntakeState = "in";
+                spindexer.setIntakeIndex(0);
+                spinInterval = 0;
+                outtakeInProgress = false;
+            }
+        }
     }
 
     // -----------------------------------------------------------------------------------------
