@@ -7,7 +7,6 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
@@ -19,9 +18,6 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 @TeleOp(name = "Test TeleOp", group = "TeleOp")
 public class TestTeleOp extends OpMode {
     private Follower follower;
-    private LockMode lockMode;
-    private boolean isLocked = false;
-    private static final Pose startingPose = PoseStorage.currentPose;
 
     private BarIntake barIntake;
     private Spindexer spindexer;
@@ -79,7 +75,6 @@ public class TestTeleOp extends OpMode {
         expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
-        lockMode = new LockMode(follower);
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
@@ -119,22 +114,13 @@ public class TestTeleOp extends OpMode {
 
         // Update follower first
         follower.update();
-
-        // --- lock mode drive control ---
-        // When locked, LockMode runs a tiny oscillation path to keep translational/heading PIDs engaged.
-        // Otherwise, ensure we are in normal teleop drive.
-        if (isLocked) {
-            lockMode.lockPosition();
-        } else {
-            lockMode.unlockPosition();
-            follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y,
-                    -gamepad1.left_stick_x,
-                    -gamepad1.right_stick_x,
-                    false,
-                    OFFSET
-            );
-        }
+        follower.setTeleOpDrive(
+                -gamepad1.left_stick_y,
+                -gamepad1.left_stick_x,
+                -gamepad1.right_stick_x,
+                false,
+                OFFSET
+        );
 
         // --- estimate robot velocity (radial relative to target) ---
         Pose currentPose = follower.getPose();
@@ -177,10 +163,6 @@ public class TestTeleOp extends OpMode {
         if (gamepad1.startWasPressed()){
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
-
-            // Ensure LockMode doesn't keep stale state across reset
-            isLocked = false;
-            lockMode.unlockPosition();
         }
 
         // Spindex control
@@ -293,7 +275,6 @@ public class TestTeleOp extends OpMode {
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
 
         // Telemetry
-        telemetry.addData("Lock Mode Active", isLocked);
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
         telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
@@ -307,7 +288,6 @@ public class TestTeleOp extends OpMode {
 
     private void startOuttakeRoutine() {
         outtakeInProgress = true;
-        isLocked = true;
         outtakeAdvanceCount = 0;
         outtakeTimer.reset();
         lastAdvanceTime = 0;
@@ -340,7 +320,6 @@ public class TestTeleOp extends OpMode {
                 spinInterval = 0;
                 spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;
-                isLocked = false;
             }
         }
     }
