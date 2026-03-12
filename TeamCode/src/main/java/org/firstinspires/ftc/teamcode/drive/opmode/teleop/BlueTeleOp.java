@@ -138,10 +138,6 @@ public class BlueTeleOp extends OpMode {
             gamepad1.rumble(200);
         }
 
-        if (gamepad1.dpadLeftWasPressed()) {
-            gamepad1.rumble(200);
-        }
-
         if (gamepad1.left_trigger > 0.5 && !shooting.isOuttakeInProgress()) {
             shooting.requestFullOuttake();
         }
@@ -172,7 +168,6 @@ public class BlueTeleOp extends OpMode {
          telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
          telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
          telemetry.addData("Target RPM", shooting.getCurrentRpmTarget());
-         telemetry.addData("Radial Vel (ips)", shooting.getRadialVelocityIps());
          telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
          char[] filled = spindexer.getFilled();
          telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
@@ -180,8 +175,6 @@ public class BlueTeleOp extends OpMode {
     }
 
     private Shooting createShooting() {
-        Shooting.Config config = new Shooting.Config();
-        config.targetPose = targetPose;
-        return new Shooting(turret, kickerServo, spindexer, barIntake, config);
+        return new Shooting(turret, kickerServo, spindexer, barIntake, targetPose);
     }
 }

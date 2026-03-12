@@ -10,59 +10,24 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
  * TeleOp-friendly shooting controller.
  *
  * Owns the state machine for full outtake + single-color outtake,
- * turret aiming, RPM calculation from distance, and velocity-based RPM compensation.
+ * turret aiming, RPM calculation from distance, and close/far shot behavior.
  *
  * Call {@link #update(Pose)} once per loop after your pose estimate updates.
  */
 public class Shooting {
 
-    private static final int DEFAULT_CLOSE_CAP_RPM = 2600;
-    private static final double DEFAULT_CLOSE_OUTTAKE_DELAY_MS = 300.0;
-    private static final double DEFAULT_FAR_OUTTAKE_DELAY_MS = 600.0;
-    private static final int DEFAULT_CLOSE_TURRET_OFFSET_DEG = 0;
-
-    public static final class Config {
-        /** RPM change per (inch/sec) of radial velocity. */
-        public double rpmPerIps = 4.0;
-        /** Ignore tiny velocity noise. */
-        public double radialVelDeadbandIps = 1.0;
-        /** Clamp velocity compensation so it can't run away. */
-        public double maxRpmVelComp = 250.0;
-
-        /** Default outtake delay (ms). TeleOp may overwrite dynamically. */
-        public double outtakeDelayMs = DEFAULT_CLOSE_OUTTAKE_DELAY_MS;
-        /** Close-shot default outtake delay (ms). */
-        public double closeOuttakeDelayMs = DEFAULT_CLOSE_OUTTAKE_DELAY_MS;
-        /** Far-shot default outtake delay (ms). */
-        public double farOuttakeDelayMs = DEFAULT_FAR_OUTTAKE_DELAY_MS;
-
-        /** If enabled, clamp RPM to closeCapRpm. */
-        public boolean rpmCapEnabled = true;
-        /** RPM cap value. */
-        public int closeCapRpm = DEFAULT_CLOSE_CAP_RPM;
-
-        /** Degrees added inside {@link Turret#trackTarget(Pose, Pose, int)}. */
-        public int turretOffsetDeg = DEFAULT_CLOSE_TURRET_OFFSET_DEG;
-
-        /** If true, forces shooter index to 1 whenever spindexer is full and idle. */
-        public boolean forceShootIndexOneWhenFullIdle = true;
-
-        /** Divisor for the first advance during a full-outtake routine. */
-        public double firstAdvanceDelayDivisor = 3.0;
-
-        /** Target pose for aiming / distance calculations. */
-        public Pose targetPose = new Pose(0, 144, 0);
-
-        /** Whether far-shooting mode is currently enabled. */
-        public boolean farShootingEnabled = false;
-    }
+    private static final int CLOSE_CAP_RPM = 2600;
+    private static final double CLOSE_OUTTAKE_DELAY_MS = 300.0;
+    private static final double FAR_OUTTAKE_DELAY_MS = 600.0;
+    private static final double FIRST_ADVANCE_DELAY_DIVISOR = 3.0;
 
     private final Turret turret;
     private final KickerServo kickerServo;
     private final Spindexer spindexer;
     private final BarIntake barIntake;
+    private final Pose targetPose;
 
-    private final Config config;
+    private boolean farShootingEnabled = false;
 
     // Outtake routine state
     private final ElapsedTime outtakeTimer = new ElapsedTime();
@@ -78,24 +43,12 @@ public class Shooting {
     // RPM state
     private double currentRpmTarget = 2500.0;
 
-    // velocity estimation
-    private Pose lastPose = null;
-    private double lastPoseTimeSec;
-    private double radialVelocityIps = 0.0;
-
-    private final ElapsedTime monotonicTimer = new ElapsedTime();
-
-    public Shooting(Turret turret, KickerServo kickerServo, Spindexer spindexer, BarIntake barIntake, Config config) {
+    public Shooting(Turret turret, KickerServo kickerServo, Spindexer spindexer, BarIntake barIntake, Pose targetPose) {
         this.turret = turret;
         this.kickerServo = kickerServo;
         this.spindexer = spindexer;
         this.barIntake = barIntake;
-        this.config = (config == null) ? new Config() : config;
-
-        applyTargetPoseDerivedDefaults();
-        setFarShootingEnabled(this.config.farShootingEnabled);
-        monotonicTimer.reset();
-        lastPoseTimeSec = monotonicTimer.seconds();
+        this.targetPose = (targetPose == null) ? new Pose(0, 144, 0) : targetPose;
     }
 
     /** Call from OpMode.start() for shooter-related startup actions. */
@@ -112,18 +65,13 @@ public class Shooting {
     public void update(Pose robotPose) {
         if (robotPose == null) return;
 
-        estimateRadialVelocity(robotPose);
-        turret.trackTarget(robotPose, config.targetPose, config.turretOffsetDeg);
+        turret.trackTarget(robotPose, targetPose, 0);
 
-        double distance = Math.hypot(config.targetPose.getX() - robotPose.getX(), config.targetPose.getY() - robotPose.getY());
+        double distance = Math.hypot(targetPose.getX() - robotPose.getX(), targetPose.getY() - robotPose.getY());
         currentRpmTarget = rpmFromDistance(distance);
 
-        double velComp = config.rpmPerIps * radialVelocityIps;
-        velComp = Math.max(-config.maxRpmVelComp, Math.min(config.maxRpmVelComp, velComp));
-        currentRpmTarget += velComp;
-
-        if (config.rpmCapEnabled && currentRpmTarget > config.closeCapRpm) {
-            currentRpmTarget = config.closeCapRpm;
+        if (!farShootingEnabled && currentRpmTarget > CLOSE_CAP_RPM) {
+            currentRpmTarget = CLOSE_CAP_RPM;
         }
 
         turret.setShooterRPM(currentRpmTarget);
@@ -132,9 +80,6 @@ public class Shooting {
         runOuttakeStateMachines();
 
         if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
-            if (config.forceShootIndexOneWhenFullIdle) {
-                spindexer.setShootIndex(1);
-            }
             spinInterval++;
             if (spinInterval > 30 && spinInterval < 50) {
                 barIntake.spinOuttake();
@@ -164,117 +109,21 @@ public class Shooting {
         return outtakeInProgress;
     }
 
-
     public double getCurrentRpmTarget() {
         return currentRpmTarget;
     }
 
-    public double getRadialVelocityIps() {
-        return radialVelocityIps;
-    }
-
-    public void setTurretOffsetDeg(int offsetDeg) {
-        config.turretOffsetDeg = offsetDeg;
-    }
-
-    public void setRpmCapEnabled(boolean enabled) {
-        config.rpmCapEnabled = enabled;
-    }
-
-    public void setOuttakeDelayMs(double delayMs) {
-        config.outtakeDelayMs = delayMs;
-    }
-
-    public void setCloseCapRpm(int closeCapRpm) {
-        config.closeCapRpm = closeCapRpm;
-    }
-
-    public void setTargetPose(Pose targetPose) {
-        if (targetPose != null) {
-            config.targetPose = targetPose;
-            applyTargetPoseDerivedDefaults();
-            setFarShootingEnabled(config.farShootingEnabled);
-        }
-    }
-
     /** Switches to the opposite preconfigured shooting mode. */
     public void toggleFarShootingMode() {
-        setFarShootingEnabled(!config.farShootingEnabled);
-    }
-
-    /**
-     * Switches between the preconfigured shooting modes.
-     * Configure close/far delays once, then just call this from TeleOp.
-     * close shooting = RPM cap on + close delay,
-     * far shooting = RPM cap off + far delay.
-     */
-    public void setFarShootingEnabled(boolean farShootingEnabled) {
-        config.farShootingEnabled = farShootingEnabled;
-        config.rpmCapEnabled = !farShootingEnabled;
-        config.outtakeDelayMs = farShootingEnabled ? config.farOuttakeDelayMs : config.closeOuttakeDelayMs;
-    }
-
-    public boolean isFarShootingEnabled() {
-        return config.farShootingEnabled;
-    }
-
-    public void setCloseOuttakeDelayMs(double delayMs) {
-        config.closeOuttakeDelayMs = delayMs;
-        if (!config.farShootingEnabled) {
-            config.outtakeDelayMs = delayMs;
-        }
-    }
-
-    public void setFarOuttakeDelayMs(double delayMs) {
-        config.farOuttakeDelayMs = delayMs;
-        if (config.farShootingEnabled) {
-            config.outtakeDelayMs = delayMs;
-        }
-    }
-
-    private void estimateRadialVelocity(Pose currentPose) {
-        double nowSec = secondsNow();
-        double dt = nowSec - lastPoseTimeSec;
-
-        if (lastPose != null && dt > 1e-3) {
-            double dx = currentPose.getX() - lastPose.getX();
-            double dy = currentPose.getY() - lastPose.getY();
-
-            double vx = dx / dt;
-            double vy = dy / dt;
-
-            double toTargetX = config.targetPose.getX() - currentPose.getX();
-            double toTargetY = config.targetPose.getY() - currentPose.getY();
-            double distToTarget = Math.hypot(toTargetX, toTargetY);
-
-            if (distToTarget > 1e-6) {
-                double ux = toTargetX / distToTarget;
-                double uy = toTargetY / distToTarget;
-
-                // Positive means moving toward target; negative means moving away.
-                double closingSpeedIps = vx * ux + vy * uy;
-
-                // We want + = away, - = toward.
-                radialVelocityIps = -closingSpeedIps;
-
-                if (Math.abs(radialVelocityIps) < config.radialVelDeadbandIps) {
-                    radialVelocityIps = 0.0;
-                }
-            } else {
-                radialVelocityIps = 0.0;
-            }
-        }
-
-        lastPose = currentPose;
-        lastPoseTimeSec = nowSec;
+        farShootingEnabled = !farShootingEnabled;
     }
 
     private double rpmFromDistance(double distanceIn) {
         return 0.0151257 * distanceIn * distanceIn + 10.03881 * distanceIn + 1382.4428;
     }
 
-    private double secondsNow() {
-        return monotonicTimer.seconds();
+    private double getOuttakeDelayMs() {
+        return farShootingEnabled ? FAR_OUTTAKE_DELAY_MS : CLOSE_OUTTAKE_DELAY_MS;
     }
 
     private void runOuttakeStateMachines() {
@@ -299,11 +148,12 @@ public class Shooting {
 
     private void handleOuttakeRoutine() {
         double currentTimeMs = outtakeTimer.milliseconds();
+        double outtakeDelayMs = getOuttakeDelayMs();
 
         if (outtakeAdvanceCount < 2) {
             double waitMs = (outtakeAdvanceCount == 0)
-                    ? (config.outtakeDelayMs / Math.max(1.0, config.firstAdvanceDelayDivisor))
-                    : config.outtakeDelayMs;
+                    ? (outtakeDelayMs / FIRST_ADVANCE_DELAY_DIVISOR)
+                    : outtakeDelayMs;
 
             if (currentTimeMs - lastAdvanceTimeMs >= waitMs) {
                 spindexer.advanceShoot();
@@ -311,7 +161,7 @@ public class Shooting {
                 lastAdvanceTimeMs = currentTimeMs;
             }
         } else {
-            if (currentTimeMs - lastAdvanceTimeMs >= config.outtakeDelayMs) {
+            if (currentTimeMs - lastAdvanceTimeMs >= outtakeDelayMs) {
                 kickerServo.normal();
                 spindexer.clearTracking();
                 barIntake.spinIntake();
@@ -348,7 +198,7 @@ public class Shooting {
                 kickerServo.kick();
             }
         } else {
-            if (outtakeTimer.milliseconds() > config.outtakeDelayMs) {
+            if (outtakeTimer.milliseconds() > getOuttakeDelayMs()) {
                 kickerServo.normal();
                 spindexer.setColorAtPos('_', spindexer.getShootIndex());
                 singleOuttakeInProgress = false;
@@ -357,10 +207,5 @@ public class Shooting {
                 }
             }
         }
-    }
-
-    private void applyTargetPoseDerivedDefaults() {
-        config.closeOuttakeDelayMs = DEFAULT_CLOSE_OUTTAKE_DELAY_MS;
-        config.farOuttakeDelayMs = DEFAULT_FAR_OUTTAKE_DELAY_MS;
     }
 }
