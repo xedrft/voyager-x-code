@@ -221,7 +221,6 @@ public class BlueTeleOp extends OpMode {
         if (gamepad1.shareWasPressed()){
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(0)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
-            pinpoint.recalibrateIMU();
             // Ensure LockMode doesn't keep stale state across reset
             isLocked = false;
             lockMode.unlockPosition();
@@ -271,9 +270,7 @@ public class BlueTeleOp extends OpMode {
                 + (targetPose.getY() - follower.getPose().getY())
                 * (targetPose.getY() - follower.getPose().getY()));
 
-        currentRPM = 0.0151257 * distance * distance
-                + 10.03881 * distance
-                + 1352.4428;
+        currentRPM = 11.30942 * distance + 1203.3583;
 
         // Velocity compensation:
         // - if moving toward goal (radialVelocityIps negative) => decrease RPM
@@ -286,10 +283,10 @@ public class BlueTeleOp extends OpMode {
 
 
         if(gamepad1.dpadLeftWasPressed()){
-            if(CloseCap == 2800){
-                CloseCap = 2600;
+            if(CloseCap == 3100){
+                CloseCap = 2400;
             }else{
-                CloseCap = 2800;
+                CloseCap = 3100;
             }
             gamepad1.rumble(200);
         }
