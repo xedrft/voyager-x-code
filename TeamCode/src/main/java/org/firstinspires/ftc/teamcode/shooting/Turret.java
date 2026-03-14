@@ -36,10 +36,10 @@ public class Turret {
 
     // Configurable offset - Voltage reading when turret is physically at 180 (backward)
     // Tune this! Example: If sensor reads 2.5V at 180 degrees, set this to 2.5
-    private final double kP_Shooter = 100.0;
+    private final double kP_Shooter = 118.0;
     private final double kI_Shooter = 0.0;
-    private final double kD_Shooter = 2.1;
-    private final double kF_Shooter = 18.0;
+    private final double kD_Shooter = 0.0;
+    private final double kF_Shooter = 10;
 
     public Turret(HardwareMap hardwareMap, String shooterName, String turretName, String turretEncoderName,
                   String transferName, boolean shooterReversed, boolean transferReversed) {

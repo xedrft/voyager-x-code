@@ -1,26 +1,3 @@
-/*
- * ShooterVelocityTuner.java
- *
- * Tunes the built-in REV Hub velocity PIDF for a shooter motor (RUN_USING_ENCODER + setVelocity()).
- *
- * Hardware:
- *   - Motor named "shooter" (change SHOOTER_NAME if needed)
- *
- * Controls (gamepad1):
- *   - A: toggle shooter ON/OFF
- *   - Dpad Up/Down: targetRPM += / -= rpmStep
- *   - Dpad Left/Right: rpmStep /=2 or *=2
- *   - Y: cycle which coefficient you edit (P -> I -> D -> F)
- *   - Left stick Y: adjust selected coefficient (up = increase)
- *   - LB: fine adjust, RB: coarse adjust
- *   - B: toggle auto-step between rpmA and rpmB (good for watching response)
- *
- * Notes:
- *   - COUNTS_PER_REV must match the encoder used by the motor controller for getVelocity().
- *     In your Turret code you used 28, so this uses 28 too.
- *   - This tunes the motor controller’s internal loop, not a custom software PID.
- */
-
 package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -29,28 +6,25 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
-import com.qualcomm.robotcore.util.Range;
 
 @TeleOp(name = "Shooter Velocity Tuner", group = "Tuning")
 public class ShooterTuner extends LinearOpMode {
 
     private static final String SHOOTER_NAME = "shooter";
-
-    // Must match your RPM conversion
     private static final double COUNTS_PER_REV = 28.0;
 
     // Target control
     private double targetRPM = 2500.0;
     private double rpmStep = 50.0;
 
-    // Auto-step (watch spin-up and disturbance recovery)
+    // Auto-step
     private boolean autoStep = false;
     private double rpmA = 2000.0;
     private double rpmB = 3000.0;
     private double autoPeriodS = 2.0;
     private final ElapsedTime autoTimer = new ElapsedTime();
 
-    // Velocity PIDF coefficients (REV Hub internal)
+    // Velocity PIDF coefficients
     private double kP, kI, kD, kF;
 
     private boolean shooterOn = false;
@@ -63,11 +37,8 @@ public class ShooterTuner extends LinearOpMode {
         DcMotorEx shooter = hardwareMap.get(DcMotorEx.class, SHOOTER_NAME);
 
         shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-        // For flywheels, FLOAT usually feels better than BRAKE.
         shooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        // Load current coefficients from the controller (so you start from known values)
         PIDFCoefficients coeffs = shooter.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
         kP = coeffs.p;
         kI = coeffs.i;
@@ -78,29 +49,48 @@ public class ShooterTuner extends LinearOpMode {
 
         waitForStart();
 
-        boolean prevA = false, prevB = false, prevY = false;
-        boolean prevLeft = false, prevRight = false;
-
         while (opModeIsActive()) {
-            // --- Button edges ---
-            boolean a = gamepad1.a;
-            boolean b = gamepad1.b;
-            boolean y = gamepad1.y;
 
-            boolean left = gamepad1.dpad_left;
-            boolean right = gamepad1.dpad_right;
+            // Toggle shooter
+            if (gamepad1.aWasPressed()) {
+                shooterOn = !shooterOn;
+            }
 
-            if (a && !prevA) shooterOn = !shooterOn;
-            if (b && !prevB) { autoStep = !autoStep; autoTimer.reset(); }
-            if (y && !prevY) selected = next(selected);
+            // Toggle auto-step
+            if (gamepad1.bWasPressed()) {
+                autoStep = !autoStep;
+                autoTimer.reset();
+            }
 
-            if (left && !prevLeft) rpmStep = Math.max(1.0, rpmStep / 2.0);
-            if (right && !prevRight) rpmStep = Math.min(2000.0, rpmStep * 2.0);
+            // Cycle selected PIDF parameter
+            if (gamepad1.yWasPressed()) {
+                selected = next(selected);
+            }
 
-            // --- Target RPM control ---
-            if (gamepad1.dpad_up) targetRPM += rpmStep;
-            if (gamepad1.dpad_down) targetRPM -= rpmStep;
+            // Change RPM step size
+            if (gamepad1.dpadLeftWasPressed()) {
+                rpmStep = Math.max(1.0, rpmStep / 2.0);
+            }
+            if (gamepad1.dpadRightWasPressed()) {
+                rpmStep = Math.min(2000.0, rpmStep * 2.0);
+            }
+
+            // Change target RPM
+            if (gamepad1.dpadUpWasPressed()) {
+                targetRPM += rpmStep;
+            }
+            if (gamepad1.dpadDownWasPressed()) {
+                targetRPM -= rpmStep;
+            }
             targetRPM = Math.max(0.0, targetRPM);
+
+            // Edit selected coefficient
+            if (gamepad1.rightBumperWasPressed()) {
+                adjustSelected(+getStepFor(selected));
+            }
+            if (gamepad1.leftBumperWasPressed()) {
+                adjustSelected(-getStepFor(selected));
+            }
 
             // Auto-step target
             if (autoStep && autoTimer.seconds() >= autoPeriodS) {
@@ -108,34 +98,10 @@ public class ShooterTuner extends LinearOpMode {
                 targetRPM = (Math.abs(targetRPM - rpmA) < 1e-6) ? rpmB : rpmA;
             }
 
-            // --- Live coefficient editing ---
-            double stick = -gamepad1.left_stick_y; // up = +, down = -
-            if (Math.abs(stick) > 0.08) {
-                double scale = 1.0;
-                if (gamepad1.left_bumper) scale = 0.2;  // fine
-                if (gamepad1.right_bumper) scale = 5.0; // coarse
-
-                // Step sizes per loop (simple, stable enough for tuning)
-                switch (selected) {
-                    case P:
-                        kP = clampNonNeg(kP + stick * 1.0 * scale);
-                        break;
-                    case I:
-                        kI = clampNonNeg(kI + stick * 0.5 * scale);
-                        break;
-                    case D:
-                        kD = clampNonNeg(kD + stick * 1.0 * scale);
-                        break;
-                    case F:
-                        kF = clampNonNeg(kF + stick * 1.0 * scale);
-                        break;
-                }
-            }
-
-            // Apply coefficients (safe to call often)
+            // Apply coefficients
             shooter.setVelocityPIDFCoefficients(kP, kI, kD, kF);
 
-            // --- Command motor velocity ---
+            // Command shooter
             if (shooterOn) {
                 double targetTPS = targetRPM * COUNTS_PER_REV / 60.0;
                 shooter.setVelocity(targetTPS);
@@ -143,13 +109,13 @@ public class ShooterTuner extends LinearOpMode {
                 shooter.setPower(0.0);
             }
 
-            // --- Telemetry ---
+            // Telemetry
             double measuredTPS = shooter.getVelocity();
             double measuredRPM = measuredTPS * 60.0 / COUNTS_PER_REV;
             double errRPM = targetRPM - measuredRPM;
 
             telemetry.addLine("=== Shooter Velocity Tuner ===");
-            telemetry.addData("Shooter tuning", shooterOn ? "ON (A)" : "OFF (A)");
+            telemetry.addData("Shooter (A)", shooterOn ? "ON" : "OFF");
             telemetry.addData("Auto-step (B)", autoStep);
             telemetry.addData("Target RPM", "%.1f", targetRPM);
             telemetry.addData("RPM step (Dpad L/R)", "%.1f", rpmStep);
@@ -157,6 +123,7 @@ public class ShooterTuner extends LinearOpMode {
             telemetry.addLine();
             telemetry.addData("Measured RPM", "%.1f", measuredRPM);
             telemetry.addData("Error RPM", "%.1f", errRPM);
+            telemetry.addData("Velocity (ticks/s)", "%.1f", measuredTPS);
 
             telemetry.addLine();
             telemetry.addData("Selected (Y)", selected);
@@ -166,15 +133,40 @@ public class ShooterTuner extends LinearOpMode {
             telemetry.addData("kF", "%.4f", kF);
 
             telemetry.addLine();
-            telemetry.addData("Velocity (ticks/s)", "%.1f", measuredTPS);
+            telemetry.addLine("RB = increase selected");
+            telemetry.addLine("LB = decrease selected");
 
             telemetry.update();
-
-            prevA = a; prevB = b; prevY = y;
-            prevLeft = left; prevRight = right;
         }
 
         shooter.setPower(0.0);
+    }
+
+    private void adjustSelected(double delta) {
+        switch (selected) {
+            case P:
+                kP = clampNonNeg(kP + delta);
+                break;
+            case I:
+                kI = clampNonNeg(kI + delta);
+                break;
+            case D:
+                kD = clampNonNeg(kD + delta);
+                break;
+            case F:
+                kF = clampNonNeg(kF + delta);
+                break;
+        }
+    }
+
+    private double getStepFor(Param p) {
+        switch (p) {
+            case P: return 0.1;
+            case I: return 0.1;
+            case D: return 0.1;
+            case F: return 0.1;
+            default: return 1.0;
+        }
     }
 
     private static Param next(Param p) {
@@ -190,3 +182,7 @@ public class ShooterTuner extends LinearOpMode {
         return Math.max(0.0, v);
     }
 }
+
+
+//f 13.0305
+//p
