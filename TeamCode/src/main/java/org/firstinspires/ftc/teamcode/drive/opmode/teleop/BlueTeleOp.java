@@ -57,6 +57,8 @@ public class BlueTeleOp extends OpMode {
     private static double OUTTAKE_DELAY_MS = 150;
 
     private int spinInterval = 0;
+    private boolean outtakeWaitingForReset = false;
+    private double resetWaitStartTime = 0;
     private boolean goingToPosition = false;
     private static Pose GO_TO_TARGET = new Pose(18.53, 58.42, 2.67);
 
@@ -83,7 +85,7 @@ public class BlueTeleOp extends OpMode {
     /** Tune: clamp total velocity compensation so it can’t run away. */
     private static final double MAX_RPM_VEL_COMP = 250.0;
 
-    private static int CloseCap = 2600;
+    private static int CloseCap = 2400;
 
 
     @Override
@@ -219,7 +221,6 @@ public class BlueTeleOp extends OpMode {
         if (gamepad1.shareWasPressed()){
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(0)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
-            pinpoint.recalibrateIMU();
             // Ensure LockMode doesn't keep stale state across reset
             isLocked = false;
             lockMode.unlockPosition();
@@ -254,11 +255,11 @@ public class BlueTeleOp extends OpMode {
         }
 
         if (!rpmCap){ //if there is NO rpm cap.
-            OUTTAKE_DELAY_MS = 600;
-            offset_turret = -7;
+            OUTTAKE_DELAY_MS = 800;
+            offset_turret = -3;
         }
         else { //if there IS an RPM cap
-            OUTTAKE_DELAY_MS = 300;
+            OUTTAKE_DELAY_MS = 150;
             offset_turret = 0;
 
         }
@@ -269,9 +270,7 @@ public class BlueTeleOp extends OpMode {
                 + (targetPose.getY() - follower.getPose().getY())
                 * (targetPose.getY() - follower.getPose().getY()));
 
-        currentRPM = 0.0151257 * distance * distance
-                + 10.03881 * distance
-                + 1382.4428;
+        currentRPM = 11.30942 * distance + 1203.3583;
 
         // Velocity compensation:
         // - if moving toward goal (radialVelocityIps negative) => decrease RPM
@@ -284,10 +283,10 @@ public class BlueTeleOp extends OpMode {
 
 
         if(gamepad1.dpadLeftWasPressed()){
-            if(CloseCap == 2800){
-                CloseCap = 2600;
+            if(CloseCap == 3100){
+                CloseCap = 2400;
             }else{
-                CloseCap = 2800;
+                CloseCap = 3100;
             }
             gamepad1.rumble(200);
         }
@@ -367,6 +366,7 @@ public class BlueTeleOp extends OpMode {
         outtakeInProgress = true;
         isLocked = true;
         outtakeAdvanceCount = 0;
+        outtakeWaitingForReset = false;
         outtakeTimer.reset();
         lastAdvanceTime = 0;
 
@@ -382,6 +382,20 @@ public class BlueTeleOp extends OpMode {
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
+        if (outtakeWaitingForReset) {
+            if (currentTime - resetWaitStartTime >= 300) {
+                barIntake.spinIntake();
+                kickerServo.normal();
+                spindexer.clearTracking();
+                spinInterval = 0;
+                spindexer.setIntakeIndex(0);
+                outtakeInProgress = false;
+                isLocked = false;
+                outtakeWaitingForReset = false;
+            }
+            return;
+        }
+
         // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 2) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 3 : OUTTAKE_DELAY_MS)) {
@@ -392,13 +406,10 @@ public class BlueTeleOp extends OpMode {
         } else {
             if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
                 // All 3 advanceIntake calls completed, set kicker back to normal
-                kickerServo.normal();
-                spindexer.clearTracking();
-                barIntake.spinIntake();
-                spinInterval = 0;
-                spindexer.setIntakeIndex(0);
-                outtakeInProgress = false;
-                isLocked = false;
+
+                // Wait 100 ms before resetting to intake index 0
+                outtakeWaitingForReset = true;
+                resetWaitStartTime = currentTime;
             }
         }
     }
@@ -440,4 +451,5 @@ public class BlueTeleOp extends OpMode {
         }
     }
 }
+
 

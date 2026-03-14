@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.shooting;
 
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.hardware.AnalogInput;
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -11,17 +10,20 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 public class Turret {
-    private DcMotorImplEx shooterMotor;
+    private final DcMotorImplEx shooterMotor;
 
-    double COUNTS_PER_WHEEL_REV = 28; // External through-bore encoder CPR (1:1 gear ratio)
+    private static final double COUNTS_PER_WHEEL_REV = 28.0;
 
-    private DcMotorImplEx transferMotor;
-    private Servo turretServo;
-    private AnalogInput turretEncoder;
+    private final DcMotorImplEx transferMotor;
+    private final Servo turretServo;
+    private final AnalogInput turretEncoder;
 
     private double shooterRPM = 2500.0;
     private double farRPM = 3000.0;
     private double transferPower = 1;
+
+    private static final double ANALOG_MAX_VOLTAGE = 3.3;
+    private double lastCommandedAngle = 0.0;
 
     // PID Coefficients for trackTarget
     public static double Kp = 0.02;
@@ -29,28 +31,31 @@ public class Turret {
     public static double Kd = 0.001;
     public static double kStatic = 0.1;
 
-    private ElapsedTime timer = new ElapsedTime();
+    // Shooter RPM controller tuning
+    public static double SHOOTER_KP = 0.019;
+    public static double SHOOTER_KI = 0.00;
+    public static double SHOOTER_KD = 0.0;
+    public static double SHOOTER_KS = 0.03;
+    // 6000 RPM motor: leave room for kS so feedforward doesn't start too high.
+    public static double SHOOTER_KV = (1.0 - SHOOTER_KS) / 5500.0;
+    public static double SHOOTER_INTEGRAL_MAX = 2500.0;
 
-    // Configurable offset - Voltage reading when turret is physically at 180 (backward)
-    // Tune this! Example: If sensor reads 2.5V at 180 degrees, set this to 2.5
-    private final double kP_Shooter = 90.0;
-    private final double kI_Shooter = 0.0;
-    private final double kD_Shooter = 2.1;
-    private final double kF_Shooter = 18.0;
+    private final ElapsedTime shooterPidTimer = new ElapsedTime();
+    private boolean shooterPidInitialized = false;
+    private double shooterIntegral = 0.0;
+    private double lastShooterError = 0.0;
+    private double lastShooterPower = 0.0;
 
     public Turret(HardwareMap hardwareMap, String shooterName, String turretName, String turretEncoderName,
                   String transferName, boolean shooterReversed, boolean transferReversed) {
-
-
         shooterMotor = hardwareMap.get(DcMotorImplEx.class, shooterName);
-        shooterMotor.setVelocityPIDFCoefficients(kP_Shooter, kI_Shooter, kD_Shooter, kF_Shooter);
-        shooterMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        shooterMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         if (shooterReversed) {
             shooterMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         } else {
             shooterMotor.setDirection(DcMotorSimple.Direction.FORWARD);
         }
-        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         turretServo = hardwareMap.get(Servo.class, turretName);
 
@@ -63,21 +68,19 @@ public class Turret {
         }
 
         turretEncoder = hardwareMap.get(AnalogInput.class, turretEncoderName);
-        timer.reset();
-
+        resetShooterPid();
     }
-
 
     public void on() {
-        double targetTPS = shooterRPM * COUNTS_PER_WHEEL_REV / 60.0;
-        shooterMotor.setVelocity(targetTPS);
+        runShooterPid(shooterRPM);
     }
+
     public void onFar() {
-        double targetTPS = farRPM * COUNTS_PER_WHEEL_REV / 60.0;
-        shooterMotor.setVelocity(targetTPS);
+        runShooterPid(farRPM);
     }
 
     public void off() {
+        resetShooterPid();
         shooterMotor.setPower(0);
     }
 
@@ -90,54 +93,139 @@ public class Turret {
     }
 
     public void setShooterRPM(double RPM) {
-        this.shooterRPM = RPM;
+        double clampedRpm = Math.max(0.0, RPM);
+        if (Math.abs(clampedRpm - shooterRPM) > 100.0) {
+            resetShooterPid();
+        }
+        this.shooterRPM = clampedRpm;
     }
 
     public double getShooterRPM() {
-        return shooterMotor.getVelocity() * 60 / COUNTS_PER_WHEEL_REV;
+        return shooterMotor.getVelocity() * 60.0 / COUNTS_PER_WHEEL_REV;
     }
 
     public double getSetShooterRPM() {
         return this.shooterRPM;
     }
 
+    public double getShooterPowerCommand() {
+        return lastShooterPower;
+    }
 
+    public double getShooterRpmError() {
+        return shooterRPM - getShooterRPM();
+    }
 
     public double getTurretVoltage() {
         return turretEncoder.getVoltage();
     }
 
-
     public void trackTarget(Pose robotPose, Pose targetPose, int offset) {
         double x = targetPose.getX() - robotPose.getX();
         double y = targetPose.getY() - robotPose.getY();
-        double targetAngle = Math.atan2(y, x); // Angle in radians
+        double targetAngle = Math.atan2(y, x);
         targetAngle += Math.toRadians(offset);
 
         double robotHeading = robotPose.getHeading();
-        double desiredRelativeAngle = Math.toDegrees(targetAngle - robotHeading); // Degrees
-
-        // Normalize desired angle to 0-360
+        double desiredRelativeAngle = Math.toDegrees(targetAngle - robotHeading);
         desiredRelativeAngle = normalizeAngle(desiredRelativeAngle);
-
         desiredRelativeAngle = Math.max(80, Math.min(280, desiredRelativeAngle));
-
 
         goToPosition(desiredRelativeAngle);
     }
 
     public void goToPosition(double targetAngleDegrees) {
-        turretServo.setPosition(1 - 4*targetAngleDegrees / 1800);
+        lastCommandedAngle = targetAngleDegrees;
+        double mapped = targetAngleDegrees * (255.0 / 360.0);
+        turretServo.setPosition(1 - (mapped / 255.0));
+    }
+
+    public double getEncoderAngle() {
+        double v = turretEncoder.getVoltage();
+        if (v < 0) v = 0;
+        if (v > ANALOG_MAX_VOLTAGE) v = ANALOG_MAX_VOLTAGE;
+        return (v / ANALOG_MAX_VOLTAGE) * 360.0;
+    }
+
+    public double getEncoderOffset() {
+        double diff = lastCommandedAngle - getEncoderAngle();
+        while (diff > 180) diff -= 360;
+        while (diff < -180) diff += 360;
+        return diff;
+    }
+
+    public double getCurrentError() {
+        return getEncoderOffset();
+    }
+
+    public void turretServo(double position) {
+        turretServo.setPosition(position);
+    }
+
+    private void runShooterPid(double targetRpm) {
+        if (targetRpm <= 0.0) {
+            off();
+            return;
+        }
+
+        double measuredRpm = getShooterRPM();
+        double error = targetRpm - measuredRpm;
+        double dt = shooterPidTimer.seconds();
+        shooterPidTimer.reset();
+
+        if (!shooterPidInitialized || dt <= 1e-4 || dt > 0.25) {
+            shooterPidInitialized = true;
+            shooterIntegral = 0.0;
+            lastShooterError = error;
+            dt = 0.0;
+        }
+
+        double integralCandidate = shooterIntegral + error * dt;
+        integralCandidate = clamp(integralCandidate, -SHOOTER_INTEGRAL_MAX, SHOOTER_INTEGRAL_MAX);
+
+        double derivative = (dt > 0.0) ? ((error - lastShooterError) / dt) : 0.0;
+        double baseOutput = computeFeedforward(targetRpm) + SHOOTER_KP * error + SHOOTER_KD * derivative;
+        double outputWithCandidateIntegral = baseOutput + SHOOTER_KI * integralCandidate;
+        double clampedCandidateOutput = clamp(outputWithCandidateIntegral, 0.0, 1.0);
+
+        boolean allowIntegral = clampedCandidateOutput == outputWithCandidateIntegral
+                || Math.signum(error) != Math.signum(integralCandidate);
+        if (allowIntegral) {
+            shooterIntegral = integralCandidate;
+        }
+
+        double output = baseOutput + SHOOTER_KI * shooterIntegral;
+        output = clamp(output, 0.0, 1.0);
+
+        shooterMotor.setPower(output);
+        lastShooterPower = output;
+        lastShooterError = error;
+    }
+
+    private double computeFeedforward(double targetRpm) {
+        if (targetRpm <= 0.0) return 0.0;
+        return SHOOTER_KS + SHOOTER_KV * targetRpm;
+    }
+
+    private void resetShooterPid() {
+        shooterPidTimer.reset();
+        shooterPidInitialized = false;
+        shooterIntegral = 0.0;
+        lastShooterError = 0.0;
+        lastShooterPower = 0.0;
     }
 
     private double normalizeAngle(double angle) {
         angle = angle % 360;
-        if (angle < 0)
-            angle += 360;
+        if (angle < 0) angle += 360;
         return angle;
     }
 
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
     public void stop() {
-        shooterMotor.setPower(0);
+        off();
     }
 }

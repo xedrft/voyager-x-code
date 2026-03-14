@@ -41,14 +41,13 @@ public class BluePlayoffAuto extends OpMode {
     private String currentBarIntakeState = "stop";
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double SCAN_TURRET_DEG = 250;
     public static double SHOOT_DEG = 318.8;
-    public static double SHOOT_RPM = 2125;
+    public static double SHOOT_RPM = 2100;
     public static double PARK_SPEED = 1.0;
 
     // Outtake cadence
-    public static double OUTTAKE_DELAY_MS = 400;
-    private double targetAngle = SCAN_TURRET_DEG;
+    public static double OUTTAKE_DELAY_MS = 350;
+    private double targetAngle = SHOOT_DEG;
 
     // -------------------- State machine --------------------
     private int pathState = 0;
@@ -57,7 +56,7 @@ public class BluePlayoffAuto extends OpMode {
 
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
-    private static final long SETTLE_DELAY_MS = 250;
+    private static final long SETTLE_DELAY_MS = 100;
     private static final long GATE_WAIT_MS = 4000;
 
     private void setState(int s) {
@@ -146,9 +145,9 @@ public class BluePlayoffAuto extends OpMode {
 
         // 3) Update spindexer
         spindexer.update();
-        if (spindexer.isFull() && !outtakeInProgress && follower.getPose().getX() > 12) {
+        if (spindexer.isFull() && !outtakeInProgress) {
             spinInterval++;
-            if (spinInterval > 30 && spinInterval < 40) {
+            if (spinInterval > 20 && spinInterval < 40) {
                 currentBarIntakeState = "out";
             } else {
                 currentBarIntakeState = "stop";
@@ -248,13 +247,13 @@ public class BluePlayoffAuto extends OpMode {
                 break;
 
             case 6:
-                follower.followPath(paths.GateIntake);
+                follower.followPath(paths.GateIntake, 1.0, true);
                 setState(7);
                 break;
 
             case 7:
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() < GATE_WAIT_MS) {
+                    if (stateTimer.milliseconds() < GATE_WAIT_MS && !spindexer.isFull()) {
                         return;
                     }
                     follower.followPath(paths.ShootGateIntake);
@@ -275,13 +274,13 @@ public class BluePlayoffAuto extends OpMode {
                 break;
 
             case 9:
-                follower.followPath(paths.GateIntake);
+                follower.followPath(paths.GateIntake, 1.0, true);
                 setState(10);
                 break;
 
             case 10:
                 if (!follower.isBusy()) {
-                    if (stateTimer.milliseconds() < GATE_WAIT_MS) {
+                    if (stateTimer.milliseconds() < GATE_WAIT_MS && !spindexer.isFull()) {
                         return;
                     }
                     follower.followPath(paths.ShootGateIntake);
@@ -392,82 +391,82 @@ public class BluePlayoffAuto extends OpMode {
 
         public Paths(Follower follower) {
             PresetShoot = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(144 - 121.396, 120.422),
-                                    new Pose(144 - 110.000, 110.000)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    new BezierLine(
+                            new Pose(144 - 121.396, 120.422),
+                            new Pose(144 - 110.000, 110.000)
+                    )
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             Pickup1 = follower.pathBuilder().addPath(
-                            new BezierCurve(
-                                    new Pose(144 - 110.000, 110.000),
-                                    new Pose(144 - 88.149, 77.811),
-                                    new Pose(144 - 76.078, 54.808),
-                                    new Pose(144 - 135.307, 59.578)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    new BezierCurve(
+                            new Pose(144 - 110.000, 110.000),
+                            new Pose(144 - 88.149, 77.811),
+                            new Pose(144 - 76.078, 54.808),
+                            new Pose(144 - 135.307, 57)
+                    )
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             ReleaseGate = follower.pathBuilder().addPath(
-                            new BezierCurve(
-                                    new Pose(144 - 135.307, 59.578),
-                                    new Pose(144 - 117.743, 59.268),
-                                    new Pose(144 - 128.422, 64.146)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    new BezierCurve(
+                            new Pose(144 - 135.307, 57),
+                            new Pose(144 - 113.743, 59.268),
+                            new Pose(144 - 128.422, 66.146)
+                    )
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             Shoot1 = follower.pathBuilder().addPath(
-                            new BezierCurve(
-                                    new Pose(144 - 128.422, 64.146),
-                                    new Pose(144 - 91.583, 66.836),
-                                    new Pose(144 - 104.346, 103.912)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    new BezierCurve(
+                            new Pose(144 - 128.422, 66.146),
+                            new Pose(144 - 87, 66),
+                            new Pose(144 - 104.346, 103.912)
+                    )
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             GateIntake = follower.pathBuilder().addPath(
-                            new BezierCurve(
-                                    new Pose(144 - 104.346, 103.912),
-                                    new Pose(144 - 86.727, 69.932),
-                                    new Pose(144 - 134.000, 60.000)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(213-90+32))
+                    new BezierCurve(
+                            new Pose(144 - 104.346, 103.912),
+                            new Pose(144 - 86.727, 69.932),
+                            new Pose(144 - 134, 59.5)
+                    )
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180 - 31))
                     .build();
 
             ShootGateIntake = follower.pathBuilder().addPath(
-                            new BezierCurve(
-                                    new Pose(144 - 134.000, 60.000),
-                                    new Pose(144 - 75.000, 69.932),
-                                    new Pose(144 - 104.346, 103.912)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(213-90+32), Math.toRadians(180))
+                    new BezierCurve(
+                            new Pose(144 - 134, 59.5),
+                            new Pose(144 - 70, 69.932),
+                            new Pose(144 - 104.346, 103.912)
+                    )
+            ).setLinearHeadingInterpolation(Math.toRadians(180 - 31), Math.toRadians(180))
                     .build();
 
             Pickup2 = follower.pathBuilder().addPath(
-                            new BezierCurve(
-                                    new Pose(144 - 104.346, 103.912),
-                                    new Pose(144 - 95.893, 79.580),
-                                    new Pose(144 - 129.386, 84.373)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    new BezierCurve(
+                            new Pose(144 - 104.346, 103.912),
+                            new Pose(144 - 93.587, 75.737),
+                            new Pose(144 - 129.386, 83)
+                    )
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             Shoot2 = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(144 - 129.386, 84.373),
-                                    new Pose(144 - 104.346, 103.912)
-                            )
-                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                    new BezierLine(
+                            new Pose(144 - 129.386, 83),
+                            new Pose(144 - 104.346, 103.912)
+                    )
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                     .build();
 
             Park = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(144 - 104.346, 103.912),
-                                    new Pose(144 - 118.871, 84.315)
-                            )
-                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+                    new BezierLine(
+                            new Pose(144 - 104.346, 103.912),
+                            new Pose(144 - 118.871, 84.315)
+                    )
+            ).setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
         }
     }

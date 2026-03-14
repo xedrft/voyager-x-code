@@ -1,188 +1,176 @@
-/*
- * ShooterVelocityTuner.java
- *
- * Tunes the built-in REV Hub velocity PIDF for a shooter motor (RUN_USING_ENCODER + setVelocity()).
- *
- * Hardware:
- *   - Motor named "shooter" (change SHOOTER_NAME if needed)
- *
- * Controls (gamepad1):
- *   - A: toggle shooter ON/OFF
- *   - Dpad Up/Down: targetRPM += / -= rpmStep
- *   - Dpad Left/Right: rpmStep /=2 or *=2
- *   - Y: cycle which coefficient you edit (P -> I -> D -> F)
- *   - Left stick Y: adjust selected coefficient (up = increase)
- *   - LB: fine adjust, RB: coarse adjust
- *   - B: toggle auto-step between rpmA and rpmB (good for watching response)
- *
- * Notes:
- *   - COUNTS_PER_REV must match the encoder used by the motor controller for getVelocity().
- *     In your Turret code you used 28, so this uses 28 too.
- *   - This tunes the motor controller’s internal loop, not a custom software PID.
- */
-
 package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
-import com.qualcomm.robotcore.util.Range;
+
+import org.firstinspires.ftc.teamcode.shooting.Turret;
 
 @TeleOp(name = "Shooter Velocity Tuner", group = "Tuning")
 public class ShooterTuner extends LinearOpMode {
 
-    private static final String SHOOTER_NAME = "shooter";
-
-    // Must match your RPM conversion
-    private static final double COUNTS_PER_REV = 28.0;
-
     // Target control
     private double targetRPM = 2500.0;
     private double rpmStep = 50.0;
+    private double gainStep = 0.00001;
 
-    // Auto-step (watch spin-up and disturbance recovery)
+    // Auto-step
     private boolean autoStep = false;
     private double rpmA = 2000.0;
     private double rpmB = 3000.0;
     private double autoPeriodS = 2.0;
     private final ElapsedTime autoTimer = new ElapsedTime();
 
-    // Velocity PIDF coefficients (REV Hub internal)
-    private double kP, kI, kD, kF;
-
     private boolean shooterOn = false;
 
-    private enum Param { P, I, D, F }
-    private Param selected = Param.P;
+    private enum Param { KP, KI, KD, KV, KS }
+    private Param selected = Param.KP;
 
     @Override
     public void runOpMode() {
-        DcMotorEx shooter = hardwareMap.get(DcMotorEx.class, SHOOTER_NAME);
-
-        shooter.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-        // For flywheels, FLOAT usually feels better than BRAKE.
-        shooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-
-        // Load current coefficients from the controller (so you start from known values)
-        PIDFCoefficients coeffs = shooter.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
-        kP = coeffs.p;
-        kI = coeffs.i;
-        kD = coeffs.d;
-        kF = coeffs.f;
+        Turret turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+        turret.setShooterRPM(targetRPM);
 
         autoTimer.reset();
 
         waitForStart();
 
-        boolean prevA = false, prevB = false, prevY = false;
-        boolean prevLeft = false, prevRight = false;
-
         while (opModeIsActive()) {
-            // --- Button edges ---
-            boolean a = gamepad1.a;
-            boolean b = gamepad1.b;
-            boolean y = gamepad1.y;
+            if (gamepad1.aWasPressed()) {
+                shooterOn = !shooterOn;
+            }
 
-            boolean left = gamepad1.dpad_left;
-            boolean right = gamepad1.dpad_right;
+            if (gamepad1.bWasPressed()) {
+                autoStep = !autoStep;
+                autoTimer.reset();
+            }
 
-            if (a && !prevA) shooterOn = !shooterOn;
-            if (b && !prevB) { autoStep = !autoStep; autoTimer.reset(); }
-            if (y && !prevY) selected = next(selected);
+            if (gamepad1.xWasPressed()) {
+                gainStep = nextGainStep(gainStep);
+            }
 
-            if (left && !prevLeft) rpmStep = Math.max(1.0, rpmStep / 2.0);
-            if (right && !prevRight) rpmStep = Math.min(2000.0, rpmStep * 2.0);
+            if (gamepad1.yWasPressed()) {
+                selected = next(selected);
+            }
 
-            // --- Target RPM control ---
-            if (gamepad1.dpad_up) targetRPM += rpmStep;
-            if (gamepad1.dpad_down) targetRPM -= rpmStep;
+            if (gamepad1.dpadLeftWasPressed()) {
+                rpmStep = Math.max(1.0, rpmStep / 2.0);
+            }
+            if (gamepad1.dpadRightWasPressed()) {
+                rpmStep = Math.min(2000.0, rpmStep * 2.0);
+            }
+
+            if (gamepad1.dpadUpWasPressed()) {
+                targetRPM += rpmStep;
+            }
+            if (gamepad1.dpadDownWasPressed()) {
+                targetRPM -= rpmStep;
+            }
             targetRPM = Math.max(0.0, targetRPM);
+            turret.setShooterRPM(targetRPM);
 
-            // Auto-step target
+            if (gamepad1.rightBumperWasPressed()) {
+                adjustSelected(+gainStep);
+            }
+            if (gamepad1.leftBumperWasPressed()) {
+                adjustSelected(-gainStep);
+            }
+
             if (autoStep && autoTimer.seconds() >= autoPeriodS) {
                 autoTimer.reset();
                 targetRPM = (Math.abs(targetRPM - rpmA) < 1e-6) ? rpmB : rpmA;
+                turret.setShooterRPM(targetRPM);
             }
 
-            // --- Live coefficient editing ---
-            double stick = -gamepad1.left_stick_y; // up = +, down = -
-            if (Math.abs(stick) > 0.08) {
-                double scale = 1.0;
-                if (gamepad1.left_bumper) scale = 0.2;  // fine
-                if (gamepad1.right_bumper) scale = 5.0; // coarse
-
-                // Step sizes per loop (simple, stable enough for tuning)
-                switch (selected) {
-                    case P:
-                        kP = clampNonNeg(kP + stick * 1.0 * scale);
-                        break;
-                    case I:
-                        kI = clampNonNeg(kI + stick * 0.5 * scale);
-                        break;
-                    case D:
-                        kD = clampNonNeg(kD + stick * 1.0 * scale);
-                        break;
-                    case F:
-                        kF = clampNonNeg(kF + stick * 1.0 * scale);
-                        break;
-                }
-            }
-
-            // Apply coefficients (safe to call often)
-            shooter.setVelocityPIDFCoefficients(kP, kI, kD, kF);
-
-            // --- Command motor velocity ---
             if (shooterOn) {
-                double targetTPS = targetRPM * COUNTS_PER_REV / 60.0;
-                shooter.setVelocity(targetTPS);
+                turret.on();
             } else {
-                shooter.setPower(0.0);
+                turret.off();
             }
-
-            // --- Telemetry ---
-            double measuredTPS = shooter.getVelocity();
-            double measuredRPM = measuredTPS * 60.0 / COUNTS_PER_REV;
-            double errRPM = targetRPM - measuredRPM;
 
             telemetry.addLine("=== Shooter Velocity Tuner ===");
-            telemetry.addData("Shooter tuning", shooterOn ? "ON (A)" : "OFF (A)");
+            telemetry.addData("Shooter (A)", shooterOn ? "ON" : "OFF");
             telemetry.addData("Auto-step (B)", autoStep);
             telemetry.addData("Target RPM", "%.1f", targetRPM);
             telemetry.addData("RPM step (Dpad L/R)", "%.1f", rpmStep);
 
             telemetry.addLine();
-            telemetry.addData("Measured RPM", "%.1f", measuredRPM);
-            telemetry.addData("Error RPM", "%.1f", errRPM);
+            telemetry.addData("Measured RPM", "%.1f", turret.getShooterRPM());
+            telemetry.addData("Error RPM", "%.1f", turret.getShooterRpmError());
+            telemetry.addData("Power Command", "%.3f", turret.getShooterPowerCommand());
 
             telemetry.addLine();
             telemetry.addData("Selected (Y)", selected);
-            telemetry.addData("kP", "%.4f", kP);
-            telemetry.addData("kI", "%.4f", kI);
-            telemetry.addData("kD", "%.4f", kD);
-            telemetry.addData("kF", "%.4f", kF);
+            telemetry.addData("Gain Step (X)", "%.6f", gainStep);
+            telemetry.addData("KP", "%.6f", Turret.SHOOTER_KP);
+            telemetry.addData("KI", "%.6f", Turret.SHOOTER_KI);
+            telemetry.addData("KD", "%.6f", Turret.SHOOTER_KD);
+            telemetry.addData("KV", "%.6f", Turret.SHOOTER_KV);
+            telemetry.addData("KS", "%.4f", Turret.SHOOTER_KS);
 
             telemetry.addLine();
-            telemetry.addData("Velocity (ticks/s)", "%.1f", measuredTPS);
-
+            telemetry.addLine("RB = increase selected");
+            telemetry.addLine("LB = decrease selected");
+            telemetry.addLine("X = cycle gain step");
             telemetry.update();
-
-            prevA = a; prevB = b; prevY = y;
-            prevLeft = left; prevRight = right;
         }
 
-        shooter.setPower(0.0);
+        turret.off();
+    }
+
+    private void adjustSelected(double delta) {
+        switch (selected) {
+            case KP:
+                Turret.SHOOTER_KP = clampNonNeg(Turret.SHOOTER_KP + delta);
+                break;
+            case KI:
+                Turret.SHOOTER_KI = clampNonNeg(Turret.SHOOTER_KI + delta);
+                break;
+            case KD:
+                Turret.SHOOTER_KD = clampNonNeg(Turret.SHOOTER_KD + delta);
+                break;
+            case KV:
+                Turret.SHOOTER_KV = clampNonNeg(Turret.SHOOTER_KV + delta);
+                break;
+            case KS:
+                Turret.SHOOTER_KS = clampNonNeg(Turret.SHOOTER_KS + delta);
+                break;
+        }
+    }
+
+    private static double nextGainStep(double current) {
+        if (current < 0.00002) return 0.00002;
+        if (current < 0.00005) return 0.00005;
+        if (current < 0.0001) return 0.0001;
+        if (current < 0.0002) return 0.0002;
+        if (current < 0.0005) return 0.0005;
+        if (current < 0.001) return 0.001;
+        if (current < 0.002) return 0.002;
+        if (current < 0.005) return 0.005;
+        if (current < 0.01) return 0.01;
+        if (current < 0.02) return 0.02;
+        if (current < 0.05) return 0.05;
+        if (current < 0.1) return 0.1;
+        if (current < 0.2) return 0.2;
+        if (current < 0.5) return 0.5;
+        if (current < 1.0) return 1.0;
+        if (current < 5.0) return 5.0;
+        if (current < 10.0) return 10.0;
+        return 0.00001;
     }
 
     private static Param next(Param p) {
         switch (p) {
-            case P: return Param.I;
-            case I: return Param.D;
-            case D: return Param.F;
-            default: return Param.P;
+            case KP:
+                return Param.KI;
+            case KI:
+                return Param.KD;
+            case KD:
+                return Param.KV;
+            case KV:
+                return Param.KS;
+            default:
+                return Param.KP;
         }
     }
 
