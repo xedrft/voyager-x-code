@@ -44,7 +44,6 @@ public class BlueTeleOp extends OpMode {
     private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
     private Pose targetPose = new Pose(0, 144, 0); // Fixed target
-    private GoBildaPinpointDriver pinpoint;
 
     // Outtake routine state
     private boolean outtakeInProgress = false;
@@ -101,13 +100,13 @@ public class BlueTeleOp extends OpMode {
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+
         //turret.goToPosition(180);
         ledHeadlight = hardwareMap.get(Servo.class, "ledLight");
         ledHeadlight.setPosition(0.0);
         ledHeadlight2 = hardwareMap.get(Servo.class, "ledLight2");
         ledHeadlight2.setPosition(0.0);
-        pinpoint.recalibrateIMU();
+
 
         if (PoseStorage.currentPose != null) {
             follower.setPose(PoseStorage.currentPose);
