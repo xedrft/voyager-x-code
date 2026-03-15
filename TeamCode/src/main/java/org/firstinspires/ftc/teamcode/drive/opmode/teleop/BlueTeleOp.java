@@ -25,8 +25,6 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 @TeleOp(name = "Blue TeleOp", group = "TeleOp")
 public class BlueTeleOp extends OpMode {
     private Follower follower;
-    private LockMode lockMode;
-    private boolean isLocked = false;
     private static final Pose startingPose = PoseStorage.currentPose;
 
     private BarIntake barIntake;
@@ -56,8 +54,6 @@ public class BlueTeleOp extends OpMode {
     private static double OUTTAKE_DELAY_MS = 150;
 
     private int spinInterval = 0;
-    private boolean outtakeWaitingForReset = false;
-    private double resetWaitStartTime = 0;
     private boolean goingToPosition = false;
     private static Pose GO_TO_TARGET = new Pose(18.53, 58.42, 2.67);
 
@@ -92,7 +88,6 @@ public class BlueTeleOp extends OpMode {
         expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
-        lockMode = new LockMode(follower);
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
@@ -141,18 +136,14 @@ public class BlueTeleOp extends OpMode {
         // --- lock mode drive control ---
         // When locked, LockMode runs a tiny oscillation path to keep translational/heading PIDs engaged.
         // Otherwise, ensure we are in normal teleop drive.
-        if (isLocked) {
-            lockMode.lockPosition();
-        } else {
-            lockMode.unlockPosition();
-            follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y,
-                    -gamepad1.left_stick_x,
-                    -gamepad1.right_stick_x,
-                    false,
-                    OFFSET
-            );
-        }
+        follower.setTeleOpDrive(
+                -gamepad1.left_stick_y,
+                -gamepad1.left_stick_x,
+                -gamepad1.right_stick_x,
+                false,
+                OFFSET
+        );
+
 
         // --- go-to-position on A button ---
         if (gamepad1.aWasPressed()) {
@@ -220,9 +211,6 @@ public class BlueTeleOp extends OpMode {
         if (gamepad1.shareWasPressed()){
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(0)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
-            // Ensure LockMode doesn't keep stale state across reset
-            isLocked = false;
-            lockMode.unlockPosition();
         }
 
         // Spindex control
@@ -349,7 +337,6 @@ public class BlueTeleOp extends OpMode {
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
 
         // Telemetry
-        telemetry.addData("Lock Mode Active", isLocked);
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
         telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
@@ -363,9 +350,7 @@ public class BlueTeleOp extends OpMode {
 
     private void startOuttakeRoutine() {
         outtakeInProgress = true;
-        isLocked = true;
         outtakeAdvanceCount = 0;
-        outtakeWaitingForReset = false;
         outtakeTimer.reset();
         lastAdvanceTime = 0;
 
@@ -381,20 +366,6 @@ public class BlueTeleOp extends OpMode {
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
-        if (outtakeWaitingForReset) {
-            if (currentTime - resetWaitStartTime >= 300) {
-                barIntake.spinIntake();
-                kickerServo.normal();
-                spindexer.clearTracking();
-                spinInterval = 0;
-                spindexer.setIntakeIndex(0);
-                outtakeInProgress = false;
-                isLocked = false;
-                outtakeWaitingForReset = false;
-            }
-            return;
-        }
-
         // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 2) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 3 : OUTTAKE_DELAY_MS)) {
@@ -403,12 +374,13 @@ public class BlueTeleOp extends OpMode {
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
-                // All 3 advanceIntake calls completed, set kicker back to normal
-
-                // Wait 100 ms before resetting to intake index 0
-                outtakeWaitingForReset = true;
-                resetWaitStartTime = currentTime;
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS*3) {
+                barIntake.spinIntake();
+                kickerServo.normal();
+                spindexer.clearTracking();
+                spinInterval = 0;
+                spindexer.setIntakeIndex(0);
+                outtakeInProgress = false;
             }
         }
     }

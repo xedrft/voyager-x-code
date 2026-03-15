@@ -41,12 +41,12 @@ public class RedPlayoffAuto extends OpMode {
     private String currentBarIntakeState = "stop";
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double SHOOT_DEG = 43.5;
-    public static double SHOOT_RPM = 2100;
+    public static double SHOOT_DEG = 45;
+    public static double SHOOT_RPM = 1900;
     public static double PARK_SPEED = 1.0;
 
     // Outtake cadence
-    public static double OUTTAKE_DELAY_MS = 350;
+    public static double OUTTAKE_DELAY_MS = 300;
     private double targetAngle = SHOOT_DEG;
 
     // -------------------- State machine --------------------
@@ -56,7 +56,7 @@ public class RedPlayoffAuto extends OpMode {
 
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
-    private static final long SETTLE_DELAY_MS = 100;
+    private static final long SETTLE_DELAY_MS = 250;
     private static final long GATE_WAIT_MS = 4000;
 
     private void setState(int s) {
@@ -206,7 +206,7 @@ public class RedPlayoffAuto extends OpMode {
                 break;
 
             case 1:
-                if (!follower.isBusy() && stateTimer.milliseconds() > 1000) {
+                if (!follower.isBusy() && stateTimer.milliseconds() > 2000) {
                     startOuttakeRoutine();
                     setState(2);
                 }
@@ -332,12 +332,8 @@ public class RedPlayoffAuto extends OpMode {
                 break;
 
             case 15:
-                follower.followPath(paths.Park, PARK_SPEED, false);
-                setState(16);
                 break;
 
-            case 16:
-                break;
         }
     }
 
@@ -389,7 +385,6 @@ public class RedPlayoffAuto extends OpMode {
         public PathChain ShootGateIntake;
         public PathChain Pickup2;
         public PathChain Shoot2;
-        public PathChain Park;
 
         public Paths(Follower follower) {
             PresetShoot = follower.pathBuilder().addPath(
@@ -463,13 +458,6 @@ public class RedPlayoffAuto extends OpMode {
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
-            Park = follower.pathBuilder().addPath(
-                            new BezierLine(
-                                    new Pose(104.346, 103.912),
-                                    new Pose(118.871, 84.315)
-                            )
-                    ).setConstantHeadingInterpolation(Math.toRadians(0))
-                    .build();
         }
     }
 }
