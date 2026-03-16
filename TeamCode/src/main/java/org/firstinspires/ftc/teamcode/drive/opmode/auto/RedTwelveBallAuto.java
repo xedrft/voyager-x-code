@@ -181,7 +181,7 @@ public class RedTwelveBallAuto extends OpMode {
 
         // 3) Update spindexer and run motif classification
         spindexer.update();
-        if (spindexer.isFull() && !outtakeInProgress && follower.getPose().getX() < 132){
+        if (spindexer.isFull() && !outtakeInProgress && follower.getPose().getX() < 124){
             spinInterval++;
             if ((spinInterval > 30 && spinInterval < 40))
                 currentBarIntakeState = "out";
@@ -236,10 +236,10 @@ public class RedTwelveBallAuto extends OpMode {
 
         if (scannedTagId == 0) {
             LLResult result = limelight.getLatestResult();
-            if (result != null && result.getFiducialResults() != null && !result.getFiducialResults().isEmpty()) {
+            if (result != null && result.getFiducialResults() != null && !result.getFiducialResults().isEmpty() && scanTimer.milliseconds() > 1000) {
                 scannedTagId = result.getFiducialResults().get(0).getFiducialId();
                 order = getMotifForTag(scannedTagId);
-            } else if (scanTimer.milliseconds() > 1700) {
+            } else if (scanTimer.milliseconds() > 2000) {
                 // Timeout: default to tag 21
                 fallback = true;
                 scannedTagId = 21;
@@ -266,7 +266,7 @@ public class RedTwelveBallAuto extends OpMode {
             // 1) Wait for order (if any) and then wait for follower to finish
             // ------------------------------------------------------------
             case 1:
-                if (!follower.isBusy() && stateTimer.milliseconds() > 2000) {
+                if (!follower.isBusy() && stateTimer.milliseconds() > 2500) {
                     startOuttakeRoutine();
                     setState(2);
                     currentOrderIndex = 1;
@@ -281,7 +281,7 @@ public class RedTwelveBallAuto extends OpMode {
                     if(fallback){
                         order = getMotifForTag(21);
                     }
-                    follower.followPath(paths.Pickup1);
+                    follower.followPath(paths.Pickup1, 0.9, false);
                     setState(3);
                 }
                 break;
@@ -509,7 +509,7 @@ public class RedTwelveBallAuto extends OpMode {
                             new BezierCurve(
                                     new Pose(144-38.000, 108.000),
                                     new Pose(144-67.500, 79.000),
-                                    new Pose(144-13.000, 84.500)
+                                    new Pose(144-15.000, 84.500)
                             )
                     ).setConstantHeadingInterpolation(Math.toRadians(0))
 
@@ -517,7 +517,7 @@ public class RedTwelveBallAuto extends OpMode {
 
             Overflow = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(144-13.000, 84.500),
+                                    new Pose(144-15.000, 84.500),
                                     new Pose(144-37.000, 76.000),
                                     new Pose(144-14.500, 76.000)
                             )

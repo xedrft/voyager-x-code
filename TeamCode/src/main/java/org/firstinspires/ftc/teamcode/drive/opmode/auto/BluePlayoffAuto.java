@@ -56,7 +56,7 @@ public class BluePlayoffAuto extends OpMode {
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
     private static final long SETTLE_DELAY_MS = 250;
-    private static final long GATE_WAIT_MS = 4000;
+    private static final long GATE_WAIT_MS = 3500;
 
     private void setState(int s) {
         if (s != lastState) {

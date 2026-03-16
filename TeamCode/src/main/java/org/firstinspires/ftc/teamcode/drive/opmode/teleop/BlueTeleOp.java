@@ -133,7 +133,6 @@ public class BlueTeleOp extends OpMode {
         // Update follower first
         follower.update();
 
-        // --- lock mode drive control ---
         // When locked, LockMode runs a tiny oscillation path to keep translational/heading PIDs engaged.
         // Otherwise, ensure we are in normal teleop drive.
         follower.setTeleOpDrive(
