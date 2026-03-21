@@ -281,7 +281,7 @@ public class BlueTwelveBallAuto extends OpMode {
                     order = getMotifForTag(21);
                 }
                 if (!outtakeInProgress) {
-                    follower.followPath(paths.Pickup1, 0.9, false);
+                    follower.followPath(paths.Pickup1, 0.8, false);
                     setState(3);
                 }
                 break;
@@ -306,7 +306,7 @@ public class BlueTwelveBallAuto extends OpMode {
                     if (!isSettling) {
                         isSettling = true;
                         settleTimer.reset();
-                    } else if (settleTimer.milliseconds() > 2000) {
+                    } else if (settleTimer.milliseconds() > 1000) {
                         spinInterval = 10;
                         follower.followPath(paths.Shoot1);
                         setState(5);
