@@ -139,7 +139,7 @@ public class RedTeleOp extends OpMode {
         // --- lock mode drive control ---
         // When locked, LockMode runs a tiny oscillation path to keep translational/heading PIDs engaged.
         // Otherwise, ensure we are in normal teleop drive.
-        if (isLocked) {
+        if (isLocked && gamepad1.left_trigger > 0.5) {
             lockMode.lockPosition();
         } else {
             lockMode.unlockPosition();
@@ -363,6 +363,7 @@ public class RedTeleOp extends OpMode {
 
         // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
+        isLocked = true;
 
         // Step 2: Set kicker servo to kick
         kickerServo.kick();
@@ -387,6 +388,7 @@ public class RedTeleOp extends OpMode {
                 spinInterval = 0;
                 spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;
+                isLocked = false;
             }
         }
     }

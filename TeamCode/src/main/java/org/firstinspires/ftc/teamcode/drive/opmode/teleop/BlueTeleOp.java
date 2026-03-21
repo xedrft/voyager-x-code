@@ -25,6 +25,8 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 @TeleOp(name = "Blue TeleOp", group = "TeleOp")
 public class BlueTeleOp extends OpMode {
     private Follower follower;
+    private LockMode lockMode;
+    private boolean isLocked = false;
     private static final Pose startingPose = PoseStorage.currentPose;
 
     private BarIntake barIntake;
@@ -88,6 +90,7 @@ public class BlueTeleOp extends OpMode {
         expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
         expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
+        lockMode = new LockMode(follower);
         barIntake = new BarIntake(hardwareMap, "barIntake", true);
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
@@ -133,16 +136,21 @@ public class BlueTeleOp extends OpMode {
         // Update follower first
         follower.update();
 
+        // --- lock mode drive control ---
         // When locked, LockMode runs a tiny oscillation path to keep translational/heading PIDs engaged.
         // Otherwise, ensure we are in normal teleop drive.
-        follower.setTeleOpDrive(
-                -gamepad1.left_stick_y,
-                -gamepad1.left_stick_x,
-                -gamepad1.right_stick_x,
-                false,
-                OFFSET
-        );
-
+        if (isLocked && gamepad1.left_trigger > 0.5) {
+            lockMode.lockPosition();
+        } else {
+            lockMode.unlockPosition();
+            follower.setTeleOpDrive(
+                    -gamepad1.left_stick_y,
+                    -gamepad1.left_stick_x,
+                    -gamepad1.right_stick_x,
+                    false,
+                    OFFSET
+            );
+        }
 
         // --- go-to-position on A button ---
         if (gamepad1.aWasPressed()) {
@@ -165,7 +173,7 @@ public class BlueTeleOp extends OpMode {
             }
         }
 
-        if(gamepad1.bWasPressed()){
+        if (gamepad1.bWasPressed()) {
             GO_TO_TARGET = follower.getPose();
         }
 
@@ -207,9 +215,12 @@ public class BlueTeleOp extends OpMode {
         lastPoseTimeSec = nowSec;
 
         // Field Reset
-        if (gamepad1.shareWasPressed()){
+        if (gamepad1.shareWasPressed()) {
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(0)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+            // Ensure LockMode doesn't keep stale state across reset
+            isLocked = false;
+            lockMode.unlockPosition();
         }
 
         // Spindex control
@@ -220,7 +231,7 @@ public class BlueTeleOp extends OpMode {
         }
 
 
-        if (gamepad1.xWasPressed()){
+        if (gamepad1.xWasPressed()) {
             spindexer.clearTracking();
             barIntake.spinIntake();
         }
@@ -234,17 +245,15 @@ public class BlueTeleOp extends OpMode {
         turret.trackTarget(follower.getPose(), targetPose, offset_turret);
 
 
-
-        if(gamepad1.dpadDownWasPressed()){
+        if (gamepad1.dpadDownWasPressed()) {
             rpmCap = !rpmCap;
             gamepad1.rumble(200);
         }
 
-        if (!rpmCap){ //if there is NO rpm cap.
+        if (!rpmCap) { //if there is NO rpm cap.
             OUTTAKE_DELAY_MS = 800;
             offset_turret = -3;
-        }
-        else { //if there IS an RPM cap
+        } else { //if there IS an RPM cap
             OUTTAKE_DELAY_MS = 150;
             offset_turret = 0;
 
@@ -268,10 +277,10 @@ public class BlueTeleOp extends OpMode {
         currentRPM = (currentRPM > CloseCap && rpmCap) ? CloseCap : currentRPM;
 
 
-        if(gamepad1.dpadLeftWasPressed()){
-            if(CloseCap == 3100){
+        if (gamepad1.dpadLeftWasPressed()) {
+            if (CloseCap == 3100) {
                 CloseCap = 2400;
-            }else{
+            } else {
                 CloseCap = 3100;
             }
             gamepad1.rumble(200);
@@ -287,34 +296,33 @@ public class BlueTeleOp extends OpMode {
         telemetry.addData("RPM Vel Comp", velComp);
         telemetry.addData("Current target RPM:", currentRPM);
 
-        if (gamepad1.leftStickButtonWasPressed()){
+        if (gamepad1.leftStickButtonWasPressed()) {
             startSingleOuttake('P');
         }
-        if (gamepad1.rightStickButtonWasPressed()){
+        if (gamepad1.rightStickButtonWasPressed()) {
             startSingleOuttake('G');
         }
         // Handle outtake routine sequence
         if (outtakeInProgress) {
             handleOuttakeRoutine();
         }
-        if (singleOuttakeInProgress){
+        if (singleOuttakeInProgress) {
             handleSingleOuttake();
         }
 
 
-        if (spindexer.isFull()){
+        if (spindexer.isFull()) {
             ledHeadlight.setPosition(1.0);
             ledHeadlight2.setPosition(1.0);
             if (!lastFull) gamepad2.rumble(2000);
             lastFull = true;
-        }
-        else{
+        } else {
             ledHeadlight.setPosition(0.0);
             ledHeadlight2.setPosition(0.0);
             lastFull = false;
         }
 
-        if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress){
+        if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
             spindexer.setShootIndex(1);
             spinInterval++;
             if (spinInterval > 30 && spinInterval < 50)
@@ -324,20 +332,19 @@ public class BlueTeleOp extends OpMode {
             }
         }
 
-        if (outtakeInProgress){
+        if (outtakeInProgress) {
             barIntake.stop();
         }
 
         spindexer.update();
 
 
-
-
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
 
         // Telemetry
+        telemetry.addData("Lock Mode Active", isLocked);
         telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
-        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")" );
+        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")");
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
         telemetry.addData("Outtake In Progress", outtakeInProgress);
@@ -356,6 +363,7 @@ public class BlueTeleOp extends OpMode {
 
         // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
+        isLocked = true;
 
         // Step 2: Set kicker servo to kick
         kickerServo.kick();
@@ -380,6 +388,7 @@ public class BlueTeleOp extends OpMode {
                 spinInterval = 0;
                 spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;
+                isLocked = false;
             }
         }
     }
