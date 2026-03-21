@@ -166,12 +166,12 @@ public class BluePlayoffAuto extends OpMode {
         PoseStorage.currentPose = follower.getPose();
 
         // 5) Telemetry
-        panelsTelemetry.debug("State", pathState);
-        panelsTelemetry.debug("X", follower.getPose().getX());
-        panelsTelemetry.debug("Y", follower.getPose().getY());
-        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
-        panelsTelemetry.debug("Outtake", outtakeInProgress);
-        panelsTelemetry.debug("Balls", spindexer.getBalls());
+//        panelsTelemetry.debug("State", pathState);
+//        panelsTelemetry.debug("X", follower.getPose().getX());
+//        panelsTelemetry.debug("Y", follower.getPose().getY());
+//        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
+//        panelsTelemetry.debug("Outtake", outtakeInProgress);
+//        panelsTelemetry.debug("Balls", spindexer.getBalls());
         if (currentBarIntakeState.equals("in")) {
             barIntake.spinIntake();
         } else if (currentBarIntakeState.equals("out")) {
@@ -180,7 +180,7 @@ public class BluePlayoffAuto extends OpMode {
             barIntake.stop();
         }
 
-        panelsTelemetry.update(telemetry);
+//        panelsTelemetry.update(telemetry);
     }
 
     // -----------------------------------------------------------------------------------------

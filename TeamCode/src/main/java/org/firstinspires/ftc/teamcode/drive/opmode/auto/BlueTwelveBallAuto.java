@@ -202,13 +202,13 @@ public class BlueTwelveBallAuto extends OpMode {
         PoseStorage.currentPose = follower.getPose();
 
         // 5) Telemetry + intake state
-        panelsTelemetry.debug("State", pathState);
-        panelsTelemetry.debug("X", follower.getPose().getX());
-        panelsTelemetry.debug("Y", follower.getPose().getY());
-        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
-        panelsTelemetry.debug("Outtake", outtakeInProgress);
-        panelsTelemetry.debug("Balls", spindexer.getBalls());
-        panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
+//        panelsTelemetry.debug("State", pathState);
+//        panelsTelemetry.debug("X", follower.getPose().getX());
+//        panelsTelemetry.debug("Y", follower.getPose().getY());
+//        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
+//        panelsTelemetry.debug("Outtake", outtakeInProgress);
+//        panelsTelemetry.debug("Balls", spindexer.getBalls());
+//        panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
         if(currentBarIntakeState.equals("in")){
             barIntake.spinIntake();
         }else if(currentBarIntakeState.equals("out")){
@@ -219,7 +219,7 @@ public class BlueTwelveBallAuto extends OpMode {
 
 
 
-        panelsTelemetry.update(telemetry);
+//        panelsTelemetry.update(telemetry);
     }
 
 

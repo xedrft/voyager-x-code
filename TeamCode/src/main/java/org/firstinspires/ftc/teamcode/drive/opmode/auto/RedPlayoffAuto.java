@@ -167,12 +167,12 @@ public class RedPlayoffAuto extends OpMode {
         PoseStorage.currentPose = follower.getPose();
 
         // 5) Telemetry
-        panelsTelemetry.debug("State", pathState);
-        panelsTelemetry.debug("X", follower.getPose().getX());
-        panelsTelemetry.debug("Y", follower.getPose().getY());
-        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
-        panelsTelemetry.debug("Outtake", outtakeInProgress);
-        panelsTelemetry.debug("Balls", spindexer.getBalls());
+//        panelsTelemetry.debug("State", pathState);
+//        panelsTelemetry.debug("X", follower.getPose().getX());
+//        panelsTelemetry.debug("Y", follower.getPose().getY());
+//        panelsTelemetry.debug("Heading", follower.getPose().getHeading());
+//        panelsTelemetry.debug("Outtake", outtakeInProgress);
+//        panelsTelemetry.debug("Balls", spindexer.getBalls());
         //panelsTelemetry.debug("Scanned Tag ID", scannedTagId);
         //
         if (currentBarIntakeState.equals("in")) {
@@ -183,7 +183,7 @@ public class RedPlayoffAuto extends OpMode {
             barIntake.stop();
         }
 
-        panelsTelemetry.update(telemetry);
+//        panelsTelemetry.update(telemetry);
     }
 
     // -----------------------------------------------------------------------------------------
