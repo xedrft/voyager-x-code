@@ -409,14 +409,14 @@ public class RedPlayoffAuto extends OpMode {
                             new BezierCurve(
                                     new Pose(135.307, 57),
                                     new Pose(117.743, 59.268),
-                                    new Pose(128.422, 64.146)
+                                    new Pose(125.422, 64.146)
                             )
                     ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                     .build();
 
             Shoot1 = follower.pathBuilder().addPath(
                             new BezierCurve(
-                                    new Pose(128.422, 64.146),
+                                    new Pose(125.422, 64.146),
                                     new Pose(87, 66),
                                     new Pose(104.346, 103.912)
                             )
