@@ -9,6 +9,7 @@ import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotorImplEx;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -53,7 +54,7 @@ public class BlueTeleOp extends OpMode {
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static double OUTTAKE_DELAY_MS = 150;
+    private static double OUTTAKE_DELAY_MS = 500;
 
     private int spinInterval = 0;
     private boolean goingToPosition = false;
@@ -87,23 +88,21 @@ public class BlueTeleOp extends OpMode {
 
     @Override
     public void init() {
-        expansionHub = hardwareMap.get(LynxModule.class, "Expansion Hub 2");
-        expansionHub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         follower = Constants.createFollower(hardwareMap);
         lockMode = new LockMode(follower);
-        barIntake = new BarIntake(hardwareMap, "barIntake", true);
-        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
-        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
-        kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+        barIntake = new BarIntake(hardwareMap, "barIntake", false);
+//        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
+        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor");
+//        kickerServo = new KickerServo(hardwareMap, "kickerServo");
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", true, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
 
         //turret.goToPosition(180);
-        ledHeadlight = hardwareMap.get(Servo.class, "ledLight");
-        ledHeadlight.setPosition(0.0);
-        ledHeadlight2 = hardwareMap.get(Servo.class, "ledLight2");
-        ledHeadlight2.setPosition(0.0);
+//        ledHeadlight = hardwareMap.get(Servo.class, "ledLight");
+//        ledHeadlight.setPosition(0.0);
+//        ledHeadlight2 = hardwareMap.get(Servo.class, "ledLight2");
+//        ledHeadlight2.setPosition(0.0);
 
 
         if (PoseStorage.currentPose != null) {
@@ -123,13 +122,11 @@ public class BlueTeleOp extends OpMode {
         follower.startTeleopDrive();
         turret.on();
         barIntake.spinIntake();
-        turret.transferOn();
+        turret.transferOff();
     }
 
     @Override
     public void loop() {
-        expansionHub.clearBulkCache();
-
         double loopMs = loopTimer.milliseconds();
         loopTimer.reset();
 
@@ -217,7 +214,7 @@ public class BlueTeleOp extends OpMode {
         // Field Reset
         if (gamepad1.shareWasPressed()) {
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(0)));
-            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", true, false);
             // Ensure LockMode doesn't keep stale state across reset
             isLocked = false;
             lockMode.unlockPosition();
@@ -234,6 +231,10 @@ public class BlueTeleOp extends OpMode {
         if (gamepad1.xWasPressed()) {
             spindexer.clearTracking();
             barIntake.spinIntake();
+        }
+
+        if (!outtakeInProgress) {
+            turret.transferPower(-1.0);
         }
 
         // Outtake routine trigger
@@ -311,22 +312,22 @@ public class BlueTeleOp extends OpMode {
         }
 
 
-        if (spindexer.isFull()) {
-            ledHeadlight.setPosition(1.0);
-            ledHeadlight2.setPosition(1.0);
-            if (!lastFull) gamepad2.rumble(2000);
-            lastFull = true;
-        } else {
-            ledHeadlight.setPosition(0.0);
-            ledHeadlight2.setPosition(0.0);
-            lastFull = false;
-        }
+//        if (spindexer.isFull()) {
+//            ledHeadlight.setPosition(1.0);
+//            ledHeadlight2.setPosition(1.0);
+//            if (!lastFull) gamepad2.rumble(2000);
+//            lastFull = true;
+//        } else {
+//            ledHeadlight.setPosition(0.0);
+//            ledHeadlight2.setPosition(0.0);
+//            lastFull = false;
+//        }
 
         if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
-            spindexer.setShootIndex(1);
+            spindexer.setShootIndex(2);
             spinInterval++;
             if (spinInterval > 30 && spinInterval < 50)
-                barIntake.spinOuttake();
+                barIntake.stop();
             else {
                 barIntake.stop();
             }
@@ -366,7 +367,6 @@ public class BlueTeleOp extends OpMode {
         isLocked = true;
 
         // Step 2: Set kicker servo to kick
-        kickerServo.kick();
         lastAdvanceTime = outtakeTimer.milliseconds();
     }
 
@@ -376,15 +376,15 @@ public class BlueTeleOp extends OpMode {
         // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 2) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 3 : OUTTAKE_DELAY_MS)) {
-                spindexer.advanceShoot();
+                spindexer.retreatShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
             }
         } else {
             if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS*3) {
                 barIntake.spinIntake();
-                kickerServo.normal();
                 spindexer.clearTracking();
+                turret.transferOff();
                 spinInterval = 0;
                 spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;

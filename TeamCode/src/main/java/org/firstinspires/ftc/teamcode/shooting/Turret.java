@@ -89,7 +89,11 @@ public class Turret {
     }
 
     public void transferOff() {
-        transferMotor.setPower(1);
+        transferMotor.setPower(0.0);
+    }
+
+    public void transferPower(double power) {
+        transferMotor.setPower(power);
     }
 
     public void setShooterRPM(double RPM) {

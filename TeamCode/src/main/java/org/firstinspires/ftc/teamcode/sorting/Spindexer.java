@@ -5,12 +5,11 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public class Spindexer {
     private final DcMotorEx spindexerMotor;
-    private AnalogInput analogEncoder;
-    private DigitalChannel distanceSensor;
+    private final AnalogInput analogEncoder;
+    private final DigitalChannel distanceSensor;
 
     // Telemetry / diagnostics
     private double lastVelocity = 0.0;
@@ -33,14 +32,23 @@ public class Spindexer {
     private double lastMeasuredAngle = 0.0;
     private final ElapsedTime timer = new ElapsedTime();
     private final ElapsedTime runtimeTimer = new ElapsedTime();
+    private final ElapsedTime detectionDelayTimer = new ElapsedTime();
 
     private double referenceAngle = 0.0;
 
     // Settings
     private static final double ANALOG_MAX_VOLTAGE = 3.3;
+    private static final double DETECTION_BASE_TOL = 20.0;
+    private static final double DETECTION_MIN_TOL = 3.0;
+    private static final double DETECTION_VELOCITY_FACTOR = 0.03;
+    public static double DETECTION_DELAY_MS = 200.0;
 
     // Calibration
-    private double angleOffsetDegrees = 59.0;
+    private double angleOffsetDegrees = 30.0;
+
+    // Detection delay / latching
+    private boolean detectionPending = false;
+    private boolean lastDistanceSensorState = false;
 
     // Tracking
     public char[] filled = {'_', '_', '_'};
@@ -49,9 +57,9 @@ public class Spindexer {
 
     // Positions (Degrees)
     // Intake: 0, 120, 240
-    public static final double[] INTAKE_ANGLES = {0.0, 120.0, 240.0};
+    public static final double[] INTAKE_ANGLES = {240, 120.0, 0.0};
     // Shoot: 180 (0.5), 300 (0.833), 60 (0.167)
-    public static final double[] SHOOT_ANGLES = {180.0, 300.0, 60.0};
+    public static final double[] SHOOT_ANGLES = {240.0, 120.0, 0.0};
 
     public Spindexer(HardwareMap hardwareMap, String motorName, String analogName, String distanceSensorName, ColorSensor colorSensor) {
         this.spindexerMotor = hardwareMap.get(DcMotorEx.class, motorName);
@@ -108,46 +116,28 @@ public class Spindexer {
         timer.reset();
         lastDt = dt;
 
-        // adaptive detection tolerance based on angular velocity
-        // Reasonable defaults (tune these):
-        // BASE_TOL: starting tolerance in degrees when stationary
-        // MIN_TOL: minimum tolerance we allow (to avoid negative/zero)
-        // VELOCITY_FACTOR: how much to reduce tolerance per (deg/s) of angular velocity
-        final double BASE_TOL = 20.0;
-        final double MIN_TOL = 3.0; // don't go below this
-        final double VELOCITY_FACTOR = 0.03; // tuned recommendation: 0.01..0.05
-
         double currentAngle = getCalibratedAngle();
         lastCurrentAngle = currentAngle;
         double velocity = smallestAngleDifference(currentAngle, lastMeasuredAngle) / Math.max(dt, 1e-6);
         lastVelocity = velocity;
+        boolean distanceDetected = distanceSensor.getState();
 
-        if (distanceSensor.getState()) {
+        if (distanceDetected && !lastDistanceSensorState && !detectionPending) {
+            detectionPending = true;
+            detectionDelayTimer.reset();
+        }
 
-            // adaptive tolerance: reduce base tolerance by factor * |velocity|, but clamp
-            double adaptiveTol = Math.max(MIN_TOL, BASE_TOL - VELOCITY_FACTOR * Math.abs(velocity));
-            lastAdaptiveTol = adaptiveTol;
-
-            for (int i = 0; i < 3; i++) {
-                if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < adaptiveTol) {
-                    // Ball detected at slot i
-                    if (filled[i] == 'X' && colorSensor != null){
-                        filled[i] = colorSensor.detection();
-                    }
-
-                    if (filled[i] == '_') {
-                        if (colorSensor != null) filled[i] = colorSensor.detection(); // Mark as filled (unknown color)
-                        else filled[i] = 'X';
-                        // Auto-advance if not full
-                        if (!isFull()) {
-                            advanceIntake();
-                        }
-                    }
-                    break;
-                }
+        if (detectionPending && detectionDelayTimer.milliseconds() >= DETECTION_DELAY_MS) {
+            if (handleDelayedDetection(currentAngle, velocity)) {
+                detectionPending = false;
             }
         }
 
+        if (!distanceDetected && !detectionPending) {
+            lastAdaptiveTol = 0.0;
+        }
+
+        lastDistanceSensorState = distanceDetected;
 
         double error = smallestAngleDifference(referenceAngle, currentAngle);
         lastError = error;
@@ -181,10 +171,37 @@ public class Spindexer {
         if (out < -1.0) out = -1.0;
 
         lastOutput = out;
-         spindexerMotor.setPower(out);
+        spindexerMotor.setPower(out);
 
-         return true;
-     }
+        return true;
+    }
+
+    private boolean handleDelayedDetection(double currentAngle, double velocity) {
+        // adaptive tolerance: reduce base tolerance by factor * |velocity|, but clamp
+        double adaptiveTol = Math.max(DETECTION_MIN_TOL, DETECTION_BASE_TOL - DETECTION_VELOCITY_FACTOR * Math.abs(velocity));
+        lastAdaptiveTol = adaptiveTol;
+
+        for (int i = 0; i < 3; i++) {
+            if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < adaptiveTol) {
+                // Ball detected at slot i after the delay
+                if (filled[i] == 'X' && colorSensor != null) {
+                    filled[i] = colorSensor.detection();
+                }
+
+                if (filled[i] == '_') {
+                    if (colorSensor != null) filled[i] = colorSensor.detection();
+                    else filled[i] = 'X';
+
+                    if (!isFull()) {
+                        advanceIntake();
+                    }
+                }
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     // --- Telemetry helpers ---
     public double getLastVelocity() { return lastVelocity; }
@@ -194,10 +211,9 @@ public class Spindexer {
     public double getLastOutput() { return lastOutput; }
     public double getLastDt() { return lastDt; }
 
+    public double getReferenceAngle() { return referenceAngle; }
 
-public double getReferenceAngle() { return referenceAngle; }
-
-// --- Tracking & Positions ---
+    // --- Tracking & Positions ---
 
     public void setIntakeIndex(int index) {
         intakeIndex = index % 3;
@@ -231,6 +247,7 @@ public double getReferenceAngle() { return referenceAngle; }
         shootIndex = (shootIndex + 2) % 3; // equivalent to -1
         setShootIndex(shootIndex);
     }
+
     public void setColorAtPos(char color, int index) {
         if (index >= 0 && index < 3) filled[index] = color;
     }
@@ -258,6 +275,7 @@ public double getReferenceAngle() { return referenceAngle; }
         filled[0] = '_';
         filled[1] = '_';
         filled[2] = '_';
+        resetDetectionState();
     }
 
     public int getIntakeIndex() {
@@ -283,7 +301,14 @@ public double getReferenceAngle() { return referenceAngle; }
         return res;
     }
 
+    private void resetDetectionState() {
+        detectionPending = false;
+        lastDistanceSensorState = distanceSensor.getState();
+        lastAdaptiveTol = 0.0;
+    }
+
     private double smallestAngleDifference(double target, double current) {
         return Math.IEEEremainder(target - current, 360.0);
     }
 }
+
