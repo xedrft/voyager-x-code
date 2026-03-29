@@ -16,6 +16,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
+import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
@@ -31,9 +32,11 @@ public class BlueTeleOp extends OpMode {
     private static final Pose startingPose = PoseStorage.currentPose;
 
     private BarIntake barIntake;
+    private IntakeFlap intakeFlap;
 
     private Servo ledHeadlight;
     private Servo ledHeadlight2;
+    private Servo FlapServo;
 
     private Spindexer spindexer;
     private int offset_turret = 0;
@@ -91,12 +94,14 @@ public class BlueTeleOp extends OpMode {
         follower = Constants.createFollower(hardwareMap);
         lockMode = new LockMode(follower);
         barIntake = new BarIntake(hardwareMap, "barIntake", false);
+        intakeFlap = new IntakeFlap(hardwareMap, "intakeFlapServo");
 //        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor");
 //        kickerServo = new KickerServo(hardwareMap, "kickerServo");
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", true, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
+        
 
         //turret.goToPosition(180);
 //        ledHeadlight = hardwareMap.get(Servo.class, "ledLight");
@@ -129,6 +134,10 @@ public class BlueTeleOp extends OpMode {
     public void loop() {
         double loopMs = loopTimer.milliseconds();
         loopTimer.reset();
+
+        if (!outtakeInProgress) {
+            intakeFlap.on();
+        }
 
         // Update follower first
         follower.update();
@@ -357,6 +366,7 @@ public class BlueTeleOp extends OpMode {
 
     private void startOuttakeRoutine() {
         outtakeInProgress = true;
+        intakeFlap.off();
         outtakeAdvanceCount = 0;
         outtakeTimer.reset();
         lastAdvanceTime = 0;
@@ -385,6 +395,7 @@ public class BlueTeleOp extends OpMode {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();
+                intakeFlap.on();
                 spinInterval = 0;
                 spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;
@@ -430,5 +441,3 @@ public class BlueTeleOp extends OpMode {
         }
     }
 }
-
-
