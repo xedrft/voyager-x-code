@@ -97,8 +97,8 @@ public class BlueTeleOp extends OpMode {
         barIntake = new BarIntake(hardwareMap, "barIntake", false);
         intakeFlap = new IntakeFlap(hardwareMap, "intakeFlapServo");
         intakeServo = new IntakeServo(hardwareMap, "intakeServo");
-//        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
-        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", null, intakeFlap);
+        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
+        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor, intakeFlap);
 //        kickerServo = new KickerServo(hardwareMap, "kickerServo");
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", true, false);
         loopTimer = new ElapsedTime();
@@ -139,8 +139,13 @@ public class BlueTeleOp extends OpMode {
     public void loop() {
         double loopMs = loopTimer.milliseconds();
         loopTimer.reset();
+        boolean colorScanInProgress = spindexer.isAccurateColorScanInProgress();
 
-        if (!spindexer.isFull()) {
+        if (colorScanInProgress) {
+            intakeFlap.off();
+            intakeServo.outtake();
+            barIntake.stop();
+        } else if (!spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
             intakeFlap.on();
             intakeServo.intake();
         }
@@ -238,22 +243,33 @@ public class BlueTeleOp extends OpMode {
             lockMode.unlockPosition();
         }
 
+        if (gamepad2.yWasPressed() && !colorScanInProgress && !outtakeInProgress && !singleOuttakeInProgress) {
+            spindexer.startAccurateColorScan();
+            colorScanInProgress = spindexer.isAccurateColorScanInProgress();
+            if (colorScanInProgress) {
+                barIntake.stop();
+                intakeFlap.off();
+                intakeServo.outtake();
+                gamepad2.rumble(200);
+            }
+        }
+
         // Spindex control
-        if (gamepad1.rightBumperWasPressed()) {
+        if (!colorScanInProgress && gamepad1.rightBumperWasPressed()) {
             spindexer.advanceIntake();
-        } else if (gamepad1.leftBumperWasPressed()) {
+        } else if (!colorScanInProgress && gamepad1.leftBumperWasPressed()) {
             spindexer.retreatIntake();
         }
 
 
-        if (gamepad1.xWasPressed()) {
+        if (!colorScanInProgress && gamepad1.xWasPressed()) {
             spindexer.clearTracking();
             barIntake.spinIntake();
         }
 
 
         // Outtake routine trigger
-        if (gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
+        if (!colorScanInProgress && gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
             turret.on();
             startOuttakeRoutine();
         }
@@ -312,10 +328,10 @@ public class BlueTeleOp extends OpMode {
         telemetry.addData("RPM Vel Comp", velComp);
         telemetry.addData("Current target RPM:", currentRPM);
 
-        if (gamepad1.leftStickButtonWasPressed()) {
+        if (!colorScanInProgress && gamepad1.leftStickButtonWasPressed()) {
             startSingleOuttake('P');
         }
-        if (gamepad1.rightStickButtonWasPressed()) {
+        if (!colorScanInProgress && gamepad1.rightStickButtonWasPressed()) {
             startSingleOuttake('G');
         }
         // Handle outtake routine sequence
@@ -338,7 +354,7 @@ public class BlueTeleOp extends OpMode {
 //            lastFull = false;
 //        }
 
-        if (spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
+        if (!colorScanInProgress && spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
             spindexer.setShootIndex(2);
             spinInterval++;
             if (spinInterval > 30 && spinInterval < 50)
@@ -364,6 +380,7 @@ public class BlueTeleOp extends OpMode {
         telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
         telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
         telemetry.addData("Outtake In Progress", outtakeInProgress);
+        telemetry.addData("Color Scan In Progress", spindexer.isAccurateColorScanInProgress());
         telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
@@ -379,7 +396,9 @@ public class BlueTeleOp extends OpMode {
 
 
         // Step 1: Turn on transfer wheel and turret wheel
-        turret.transferOn();
+        if (spindexer.isFull()) {
+            turret.transferOn();
+        }
         isLocked = true;
 
         // Step 2: Set kicker servo to kick
@@ -391,7 +410,8 @@ public class BlueTeleOp extends OpMode {
 
         // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 2) {
-            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 3 : OUTTAKE_DELAY_MS)) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+                turret.transferOn();
                 spindexer.retreatShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
@@ -422,9 +442,7 @@ public class BlueTeleOp extends OpMode {
         if (index == -1) return;
         singleOuttakeInProgress = true;
         singleAtPosition = false;
-
-        turret.transferOn();
-
+        
         spindexer.setShootIndex(index);
     }
 
@@ -433,15 +451,16 @@ public class BlueTeleOp extends OpMode {
             if (spindexer.isAtTarget(5.0)){
                 singleAtPosition = true;
                 outtakeTimer.reset();
-                kickerServo.kick();
+                turret.transferOn();
             }
         } else {
             if (outtakeTimer.milliseconds() > OUTTAKE_DELAY_MS){
-                kickerServo.normal();
+                turret.transferOff();
                 spindexer.setColorAtPos('_', spindexer.getShootIndex());
                 singleOuttakeInProgress = false;
-                if (!spindexer.isFull()) {
+                if (spindexer.isEmpty()) {
                     barIntake.spinIntake();
+                    spindexer.setIntakeIndex(0);
                 }
             }
         }

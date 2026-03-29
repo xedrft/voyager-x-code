@@ -8,6 +8,13 @@ import com.qualcomm.robotcore.hardware.DigitalChannel;
 import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
 
 public class Spindexer {
+    private enum ColorScanState {
+        IDLE,
+        MOVING,
+        SAMPLING,
+        WAITING_BETWEEN_SLOTS
+    }
+
     private final DcMotorEx spindexerMotor;
     private final AnalogInput analogEncoder;
     private final DigitalChannel distanceSensor;
@@ -34,12 +41,16 @@ public class Spindexer {
     private double lastMeasuredAngle = 0.0;
     private final ElapsedTime timer = new ElapsedTime();
     private final ElapsedTime runtimeTimer = new ElapsedTime();
+    private final ElapsedTime colorScanTimer = new ElapsedTime();
 
     private double referenceAngle = 0.0;
 
     // Settings
     private static final double ANALOG_MAX_VOLTAGE = 3.3;
     public static double FLAP_ON_DETECTION_DELAY_MS = 250.0;
+    public static double COLOR_SCAN_POSITION_TOLERANCE_DEG = 5.0;
+    public static double COLOR_SCAN_SETTLE_MS = 150.0;
+    public static double COLOR_SCAN_NEXT_SLOT_DELAY_MS = 100.0;
 
     // Calibration
     private double angleOffsetDegrees = 30.0;
@@ -52,12 +63,19 @@ public class Spindexer {
     public char[] filled = {'_', '_', '_'};
     private int intakeIndex = 0;
     private int shootIndex = 0;
+    private ColorScanState colorScanState = ColorScanState.IDLE;
+    private int colorScanIndex = -1;
+    private double preScanReferenceAngle = 0.0;
+    private int scanGreenCount = 0;
+    private int scanPurpleCount = 0;
+    private int scanUnknownCount = 0;
 
     // Positions (Degrees)
     // Intake: 0, 120, 240
     public static final double[] INTAKE_ANGLES = {240.0, 120.0, 0.0};
     // Shoot: 180 (0.5), 300 (0.833), 60 (0.167)
     public static final double[] SHOOT_ANGLES = {240.0, 120.0, 0.0};
+    public static final double[] COLOR_SCAN_ANGLES = {60.0, 300.0, 180.0};
 
     public Spindexer(HardwareMap hardwareMap, String motorName, String analogName, String distanceSensorName, ColorSensor colorSensor, IntakeFlap intakeFlap) {
         this.spindexerMotor = hardwareMap.get(DcMotorEx.class, motorName);
@@ -124,14 +142,16 @@ public class Spindexer {
         // BASE_TOL: starting tolerance in degrees when stationary
         // MIN_TOL: minimum tolerance we allow (to avoid negative/zero)
         // VELOCITY_FACTOR: how much to reduce tolerance per (deg/s) of angular velocity
-        final double BASE_TOL = 20.0;
+        final double BASE_TOL = 15.0;
         final double MIN_TOL = 3.0; // don't go below this
-        final double VELOCITY_FACTOR = 0.03; // tuned recommendation: 0.01..0.05
+        final double VELOCITY_FACTOR = 0.04; // tuned recommendation: 0.01..0.05
 
         double currentAngle = getCalibratedAngle();
         lastCurrentAngle = currentAngle;
         double velocity = smallestAngleDifference(currentAngle, lastMeasuredAngle) / Math.max(dt, 1e-6);
         lastVelocity = velocity;
+
+        updateColorScan(currentAngle);
 
         if (distanceSensor.getState() && isDetectionEnabled()) {
 
@@ -142,13 +162,8 @@ public class Spindexer {
             for (int i = 0; i < 3; i++) {
                 if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < adaptiveTol) {
                     // Ball detected at slot i
-                    if (filled[i] == 'X' && colorSensor != null){
-                        filled[i] = colorSensor.detection();
-                    }
-
                     if (filled[i] == '_') {
-                        if (colorSensor != null) filled[i] = colorSensor.detection(); // Mark as filled (unknown color)
-                        else filled[i] = 'X';
+                        filled[i] = 'X';
                         // Auto-advance if not full
                         if (!isFull()) {
                             advanceIntake();
@@ -210,7 +225,35 @@ public class Spindexer {
 
 // --- Tracking & Positions ---
 
+    public void startAccurateColorScan() {
+        if (colorSensor == null || colorScanState != ColorScanState.IDLE) {
+            return;
+        }
+
+        preScanReferenceAngle = referenceAngle;
+        colorScanIndex = -1;
+        if (!moveToNextScannableSlot()) {
+            colorScanState = ColorScanState.IDLE;
+        }
+    }
+
+    public boolean isAccurateColorScanInProgress() {
+        return colorScanState != ColorScanState.IDLE;
+    }
+
+    public void cancelAccurateColorScan() {
+        if (colorScanState == ColorScanState.IDLE) {
+            return;
+        }
+
+        colorScanState = ColorScanState.IDLE;
+        colorScanIndex = -1;
+        resetColorScanCounts();
+        startMoveToAngle(preScanReferenceAngle);
+    }
+
     public void setIntakeIndex(int index) {
+        cancelAccurateColorScan();
         intakeIndex = index % 3;
         if (intakeIndex < 0) intakeIndex += 3;
         startMoveToAngle(INTAKE_ANGLES[intakeIndex]);
@@ -227,6 +270,7 @@ public class Spindexer {
     }
 
     public void setShootIndex(int index) {
+        cancelAccurateColorScan();
         index %= 3;
         if (index < 0) index += 3;
         shootIndex = index;
@@ -257,6 +301,13 @@ public class Spindexer {
         return true;
     }
 
+    public boolean isEmpty() {
+        for (char c : filled) {
+            if (c == '_') return true;
+        }
+        return false;
+    }
+
     public int getBalls(){
         int ret = 0;
         for (char c : filled) {
@@ -266,6 +317,7 @@ public class Spindexer {
     }
 
     public void clearTracking() {
+        cancelAccurateColorScan();
         filled[0] = '_';
         filled[1] = '_';
         filled[2] = '_';
@@ -289,6 +341,10 @@ public class Spindexer {
 
     // --- Helpers ---
     private boolean isDetectionEnabled() {
+        if (intakeFlap == null) {
+            return true;
+        }
+
         boolean flapOn = intakeFlap.isOn();
         if (!flapOn) {
             lastFlapOn = false;
@@ -302,6 +358,102 @@ public class Spindexer {
         }
 
         return flapOnTimer.milliseconds() >= FLAP_ON_DETECTION_DELAY_MS;
+    }
+
+    private void updateColorScan(double currentAngle) {
+        if (colorScanState == ColorScanState.IDLE || colorSensor == null) {
+            return;
+        }
+
+        double targetAngle = COLOR_SCAN_ANGLES[colorScanIndex];
+        boolean atScanAngle = Math.abs(smallestAngleDifference(currentAngle, targetAngle)) <= COLOR_SCAN_POSITION_TOLERANCE_DEG;
+
+        switch (colorScanState) {
+            case MOVING:
+                if (atScanAngle) {
+                    colorScanState = ColorScanState.SAMPLING;
+                    colorScanTimer.reset();
+                    resetColorScanCounts();
+                }
+                break;
+
+            case SAMPLING:
+                if (!atScanAngle) {
+                    colorScanState = ColorScanState.MOVING;
+                    break;
+                }
+
+                recordColorSample(colorSensor.detection());
+                if (colorScanTimer.milliseconds() >= COLOR_SCAN_SETTLE_MS) {
+                    filled[colorScanIndex] = chooseScannedColor();
+                    colorScanState = ColorScanState.WAITING_BETWEEN_SLOTS;
+                    colorScanTimer.reset();
+                }
+                break;
+
+            case WAITING_BETWEEN_SLOTS:
+                if (colorScanTimer.milliseconds() >= COLOR_SCAN_NEXT_SLOT_DELAY_MS) {
+                    if (!moveToNextScannableSlot()) {
+                        finishAccurateColorScan();
+                    }
+                }
+                break;
+
+            case IDLE:
+            default:
+                break;
+        }
+    }
+
+    private boolean moveToNextScannableSlot() {
+        for (int i = colorScanIndex + 1; i < filled.length; i++) {
+            if (filled[i] != '_') {
+                colorScanIndex = i;
+                colorScanState = ColorScanState.MOVING;
+                resetColorScanCounts();
+                startMoveToAngle(COLOR_SCAN_ANGLES[colorScanIndex]);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void finishAccurateColorScan() {
+        colorScanState = ColorScanState.IDLE;
+        colorScanIndex = -1;
+        resetColorScanCounts();
+        startMoveToAngle(preScanReferenceAngle);
+    }
+
+    private void resetColorScanCounts() {
+        scanGreenCount = 0;
+        scanPurpleCount = 0;
+        scanUnknownCount = 0;
+    }
+
+    private void recordColorSample(char sample) {
+        switch (sample) {
+            case 'G':
+                scanGreenCount++;
+                break;
+            case 'P':
+                scanPurpleCount++;
+                break;
+            default:
+                scanUnknownCount++;
+                break;
+        }
+    }
+
+    private char chooseScannedColor() {
+        if (scanGreenCount >= scanPurpleCount && scanGreenCount >= scanUnknownCount) {
+            return 'G';
+        }
+        if (scanPurpleCount >= scanGreenCount && scanPurpleCount >= scanUnknownCount) {
+            return 'P';
+        }
+        return 'X';
     }
 
     private double normalizeAngleDegrees(double a) {
