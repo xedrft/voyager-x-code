@@ -4,7 +4,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class IntakeFlap {
-    public static final double OFF_POSITION = 0.1;
+    public static final double OFF_POSITION = 0.3;
     public static final double ON_POSITION = 0.0;
     public Servo servo;
     public IntakeFlap(HardwareMap hardwareMap, String name){
@@ -19,6 +19,8 @@ public class IntakeFlap {
         servo.setPosition(ON_POSITION);
     }
 
-
+    public boolean isOn(){
+        return servo.getPosition() == ON_POSITION;
+    }
 
 }

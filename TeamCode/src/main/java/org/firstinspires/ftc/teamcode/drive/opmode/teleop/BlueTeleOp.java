@@ -17,6 +17,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
 import org.firstinspires.ftc.teamcode.intake.BarIntake;
 import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
+import org.firstinspires.ftc.teamcode.intake.IntakeServo;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
@@ -36,11 +37,11 @@ public class BlueTeleOp extends OpMode {
 
     private Servo ledHeadlight;
     private Servo ledHeadlight2;
-    private Servo FlapServo;
 
     private Spindexer spindexer;
     private int offset_turret = 0;
     private KickerServo kickerServo;
+    private IntakeServo intakeServo;
     private Turret turret;
     private ColorSensor colorSensor;
     private ElapsedTime loopTimer;
@@ -95,8 +96,9 @@ public class BlueTeleOp extends OpMode {
         lockMode = new LockMode(follower);
         barIntake = new BarIntake(hardwareMap, "barIntake", false);
         intakeFlap = new IntakeFlap(hardwareMap, "intakeFlapServo");
+        intakeServo = new IntakeServo(hardwareMap, "intakeServo");
 //        colorSensor = new ColorSensor(hardwareMap, "colorSensor");
-        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor");
+        spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", null, intakeFlap);
 //        kickerServo = new KickerServo(hardwareMap, "kickerServo");
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", true, false);
         loopTimer = new ElapsedTime();
@@ -127,7 +129,10 @@ public class BlueTeleOp extends OpMode {
         follower.startTeleopDrive();
         turret.on();
         barIntake.spinIntake();
+        intakeFlap.on();
+        intakeServo.intake();
         turret.transferOff();
+        spindexer.setIntakeIndex(0);
     }
 
     @Override
@@ -135,13 +140,17 @@ public class BlueTeleOp extends OpMode {
         double loopMs = loopTimer.milliseconds();
         loopTimer.reset();
 
-        if (!outtakeInProgress) {
+        if (!spindexer.isFull()) {
             intakeFlap.on();
+            intakeServo.intake();
+        }
+        else {
+            intakeFlap.off();
+            intakeServo.outtake();
         }
 
         // Update follower first
         follower.update();
-
         // --- lock mode drive control ---
         // When locked, LockMode runs a tiny oscillation path to keep translational/heading PIDs engaged.
         // Otherwise, ensure we are in normal teleop drive.
@@ -242,9 +251,6 @@ public class BlueTeleOp extends OpMode {
             barIntake.spinIntake();
         }
 
-        if (!outtakeInProgress) {
-            turret.transferPower(-1.0);
-        }
 
         // Outtake routine trigger
         if (gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
