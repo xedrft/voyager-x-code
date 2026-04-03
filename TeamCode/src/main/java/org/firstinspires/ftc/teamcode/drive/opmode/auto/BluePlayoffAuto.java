@@ -102,6 +102,7 @@ public class BluePlayoffAuto extends OpMode {
                 "turret",
                 "turretEncoder",
                 "transferMotor",
+                "hoodServo",
                 false,
                 false
         );

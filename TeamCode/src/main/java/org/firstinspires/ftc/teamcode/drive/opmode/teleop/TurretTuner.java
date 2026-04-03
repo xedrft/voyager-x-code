@@ -40,6 +40,7 @@ public class TurretTuner extends OpMode {
                 TURRET_NAME,
                 TURRET_ENCODER_NAME,
                 TRANSFER_NAME,
+                "hoodServo",
                 false, // shooterReversed
                 false  // transferReversed
         );

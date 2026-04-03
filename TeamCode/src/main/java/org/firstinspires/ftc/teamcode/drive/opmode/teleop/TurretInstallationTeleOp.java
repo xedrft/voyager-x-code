@@ -12,7 +12,7 @@ public class TurretInstallationTeleOp extends OpMode {
 
     @Override
     public void init() {
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", false, false);
         turret.goToPosition(currentDegrees);
     }
 

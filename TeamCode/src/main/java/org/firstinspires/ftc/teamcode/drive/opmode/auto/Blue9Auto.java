@@ -129,6 +129,7 @@ public class Blue9Auto extends OpMode {
                 "turret",
                 "turretEncoder",
                 "transferMotor",
+                "hoodServo",
                 false,
                 false
         );

@@ -100,7 +100,7 @@ public class BlueTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor, intakeFlap);
 //        kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", true, false);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", true, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
         
@@ -236,8 +236,8 @@ public class BlueTeleOp extends OpMode {
 
         // Field Reset
         if (gamepad1.shareWasPressed()) {
-            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(0)));
-            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", true, false);
+            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
+            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", true, false);
             // Ensure LockMode doesn't keep stale state across reset
             isLocked = false;
             lockMode.unlockPosition();

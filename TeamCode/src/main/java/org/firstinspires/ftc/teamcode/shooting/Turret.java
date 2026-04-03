@@ -16,6 +16,7 @@ public class Turret {
 
     private final DcMotorImplEx transferMotor;
     private final Servo turretServo;
+    private final Servo hoodServo;
     private final AnalogInput turretEncoder;
 
     private double shooterRPM = 2500.0;
@@ -47,7 +48,7 @@ public class Turret {
     private double lastShooterPower = 0.0;
 
     public Turret(HardwareMap hardwareMap, String shooterName, String turretName, String turretEncoderName,
-                  String transferName, boolean shooterReversed, boolean transferReversed) {
+                  String transferName, String hoodServoName, boolean shooterReversed, boolean transferReversed) {
         shooterMotor = hardwareMap.get(DcMotorImplEx.class, shooterName);
         shooterMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         if (shooterReversed) {
@@ -58,6 +59,7 @@ public class Turret {
         shooterMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         turretServo = hardwareMap.get(Servo.class, turretName);
+        hoodServo = hardwareMap.get(Servo.class, hoodServoName);
 
         transferMotor = hardwareMap.get(DcMotorImplEx.class, transferName);
         transferMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -69,6 +71,14 @@ public class Turret {
 
         turretEncoder = hardwareMap.get(AnalogInput.class, turretEncoderName);
         resetShooterPid();
+    }
+
+    public void setHoodPosition(double position) {
+        hoodServo.setPosition(clamp(position, 0.39, 1.0));
+    }
+
+    public double getHoodPosition() {
+        return hoodServo.getPosition();
     }
 
     public void on() {
@@ -133,14 +143,17 @@ public class Turret {
         double robotHeading = robotPose.getHeading();
         double desiredRelativeAngle = Math.toDegrees(targetAngle - robotHeading);
         desiredRelativeAngle = normalizeAngle(desiredRelativeAngle);
-        desiredRelativeAngle = Math.max(80, Math.min(280, desiredRelativeAngle));
+        if (desiredRelativeAngle > 100 && desiredRelativeAngle < 260) {
+            desiredRelativeAngle = (desiredRelativeAngle < 180) ? 100 : 260;
+        }
 
         goToPosition(desiredRelativeAngle);
     }
 
     public void goToPosition(double targetAngleDegrees) {
         lastCommandedAngle = targetAngleDegrees;
-        double mapped = targetAngleDegrees * (255.0 / 360.0);
+        double adjusted = (targetAngleDegrees + 180.0) % 360.0;
+        double mapped = adjusted * (255.0 / 360.0);
         turretServo.setPosition(1 - (mapped / 255.0));
     }
 

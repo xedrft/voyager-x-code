@@ -88,6 +88,7 @@ public class BlueAuto extends OpMode {
                 "turret",
                 "turretEncoder",
                 "transferMotor",
+                "hoodServo",
                 false,
                 false);
 

@@ -89,6 +89,7 @@ public class RedAuto extends OpMode {
                 "turret",
                 "turretEncoder",
                 "transferMotor",
+                "hoodServo",
                 false,
                 false
         );

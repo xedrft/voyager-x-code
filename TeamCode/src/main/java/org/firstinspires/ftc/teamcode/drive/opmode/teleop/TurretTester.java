@@ -17,7 +17,7 @@ public class TurretTester extends OpMode {
     public void init() {
         follower = Constants.createFollower(hardwareMap);
         // Turret constructor: HardwareMap, shooterName, turretName, turretEncoderName, shooterReversed, turretReversed
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", false, false);
         follower.setStartingPose(new Pose(7.5, 7.75, 0));
     }
 

@@ -90,6 +90,7 @@ public class Blue18Auto extends OpMode {
                 "turret",
                 "turretEncoder",
                 "transferMotor",
+                "hoodServo",
                 false,
                 false);
 

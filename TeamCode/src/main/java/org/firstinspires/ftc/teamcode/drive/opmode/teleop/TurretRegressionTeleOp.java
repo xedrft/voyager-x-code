@@ -52,7 +52,7 @@ public class TurretRegressionTeleOp extends OpMode {
         ColorSensor colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", false, false);
 
         outtakeTimer = new ElapsedTime();
 

@@ -7,8 +7,8 @@ public class IntakeServo {
     private Servo servo;
 
     // Position constants
-    private static final double INTAKE_POSITION = 0.48;
-    private static final double OUTTAKE_POSITION = 0.43;
+    private static final double INTAKE_POSITION = 0.5;
+    private static final double OUTTAKE_POSITION = 0.6;
 
     public IntakeServo(HardwareMap hardwareMap, String name) {
         servo = hardwareMap.get(Servo.class, name);

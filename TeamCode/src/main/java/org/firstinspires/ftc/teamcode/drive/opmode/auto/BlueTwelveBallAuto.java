@@ -134,6 +134,7 @@ public class BlueTwelveBallAuto extends OpMode {
                 "turret",
                 "turretEncoder",
                 "transferMotor",
+                "hoodServo",
                 false,
                 false
         );

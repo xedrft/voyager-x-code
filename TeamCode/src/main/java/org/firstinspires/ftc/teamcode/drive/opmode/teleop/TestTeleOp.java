@@ -84,7 +84,7 @@ public class TestTeleOp extends OpMode {
         colorSensor = new ColorSensor(hardwareMap, "colorSensor");
         spindexer = new Spindexer(hardwareMap, "spindexerMotor", "spindexerAnalog", "distanceSensor", colorSensor);
         kickerServo = new KickerServo(hardwareMap, "kickerServo");
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", false, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
         //turret.goToPosition(180);
@@ -176,7 +176,7 @@ public class TestTeleOp extends OpMode {
         // Field Reset
         if (gamepad1.startWasPressed()){
             follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
-            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+            turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", false, false);
 
             // Ensure LockMode doesn't keep stale state across reset
             isLocked = false;

@@ -28,7 +28,7 @@ public class ShooterTuner extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        Turret turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", false, false);
+        Turret turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", false, false);
         turret.setShooterRPM(targetRPM);
 
         autoTimer.reset();
