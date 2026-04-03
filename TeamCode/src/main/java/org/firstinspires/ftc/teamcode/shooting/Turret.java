@@ -33,12 +33,12 @@ public class Turret {
     public static double kStatic = 0.1;
 
     // Shooter RPM controller tuning
-    public static double SHOOTER_KP = 0.019;
+    public static double SHOOTER_KP = 0.01;
     public static double SHOOTER_KI = 0.00;
     public static double SHOOTER_KD = 0.0;
     public static double SHOOTER_KS = 0.03;
     // 6000 RPM motor: leave room for kS so feedforward doesn't start too high.
-    public static double SHOOTER_KV = (1.0 - SHOOTER_KS) / 5500.0;
+    public static double SHOOTER_KV = (1.0 - SHOOTER_KS) / 4500.0;
     public static double SHOOTER_INTEGRAL_MAX = 2500.0;
 
     private final ElapsedTime shooterPidTimer = new ElapsedTime();
