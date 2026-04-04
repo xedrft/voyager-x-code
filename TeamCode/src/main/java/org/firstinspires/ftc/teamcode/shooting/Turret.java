@@ -41,6 +41,10 @@ public class Turret {
     public static double SHOOTER_KV = (1.0 - SHOOTER_KS) / 4500.0;
     public static double SHOOTER_INTEGRAL_MAX = 2500.0;
 
+    // Angle compensation tuning
+    public static double DYNAMIC_OFFSET_MULTIPLIER = 0.17; // Scales how much the angle is adjusted
+    public static double DYNAMIC_OFFSET_BASE_ANGLE = 135.0; // The angle where no offset is applied (e.g. 45 deg relative to origin)
+
     private final ElapsedTime shooterPidTimer = new ElapsedTime();
     private boolean shooterPidInitialized = false;
     private double shooterIntegral = 0.0;
@@ -138,7 +142,14 @@ public class Turret {
         double x = targetPose.getX() - robotPose.getX();
         double y = targetPose.getY() - robotPose.getY();
         double targetAngle = Math.atan2(y, x);
-        targetAngle += Math.toRadians(offset);
+        
+        double targetAngleDeg = Math.toDegrees(targetAngle);
+        
+        // Calculate the dynamic offset based on how far we are from the base "no offset" corner angle.
+        // For example, if we are at 72,0 and pointing steeper into Y, we offset slightly to aim away from the wall.
+        double dynamicOffsetDeg = DYNAMIC_OFFSET_MULTIPLIER * (targetAngleDeg - DYNAMIC_OFFSET_BASE_ANGLE);
+
+        targetAngle += Math.toRadians(offset + dynamicOffsetDeg);
 
         double robotHeading = robotPose.getHeading();
         double desiredRelativeAngle = Math.toDegrees(targetAngle - robotHeading);
