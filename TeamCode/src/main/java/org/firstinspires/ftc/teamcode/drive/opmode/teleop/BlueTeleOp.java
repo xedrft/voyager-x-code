@@ -66,6 +66,7 @@ public class BlueTeleOp extends OpMode {
 
 
     private double currentRPM = 2500.0;
+    private int shotCount = 0;
 
     // --- velocity-based RPM compensation ---
     private Pose lastPose = null;
@@ -287,7 +288,6 @@ public class BlueTeleOp extends OpMode {
         currentRPM = 16.9233 * distance + 1496.8783;
         turret.setHoodPosition(-0.008879 * distance + 1.4618);
 
-
         // Velocity compensation:
         // - if moving toward goal (radialVelocityIps negative) => decrease RPM
         // - if moving away (radialVelocityIps positive) => increase RPM
@@ -295,7 +295,8 @@ public class BlueTeleOp extends OpMode {
         velComp = Math.max(-MAX_RPM_VEL_COMP, Math.min(MAX_RPM_VEL_COMP, velComp));
         currentRPM += velComp;
 
-
+        // Shot compensation: +30 RPM per ball shot since last reset
+        currentRPM += shotCount * 100.0;
 
         // Update RPM
         turret.setShooterRPM(currentRPM);
@@ -305,6 +306,7 @@ public class BlueTeleOp extends OpMode {
         telemetry.addData("Calculated Distance (in)", distance);
         telemetry.addData("Radial Vel (ips)", radialVelocityIps);
         telemetry.addData("RPM Vel Comp", velComp);
+        telemetry.addData("Shot Count", shotCount);
         telemetry.addData("Current target RPM:", currentRPM);
 
         if (!colorScanInProgress && gamepad1.leftStickButtonWasPressed()) {
@@ -391,6 +393,7 @@ public class BlueTeleOp extends OpMode {
         if (outtakeAdvanceCount < 2) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
                 turret.transferOn();
+                shotCount++;
                 spindexer.retreatShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
@@ -402,6 +405,7 @@ public class BlueTeleOp extends OpMode {
                 turret.transferOff();
                 intakeFlap.on();
                 spinInterval = 0;
+                shotCount = 0;
                 spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;
                 isLocked = false;
@@ -431,12 +435,14 @@ public class BlueTeleOp extends OpMode {
                 singleAtPosition = true;
                 outtakeTimer.reset();
                 turret.transferOn();
+                shotCount++;
             }
         } else {
             if (outtakeTimer.milliseconds() > OUTTAKE_DELAY_MS){
                 turret.transferOff();
                 spindexer.setColorAtPos('_', spindexer.getShootIndex());
                 singleOuttakeInProgress = false;
+                shotCount = 0;
                 if (spindexer.isEmpty()) {
                     barIntake.spinIntake();
                     spindexer.setIntakeIndex(0);
