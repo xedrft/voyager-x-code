@@ -30,7 +30,7 @@ public class Spindexer {
 
     // --- PIDF Coefficients ---
     // Start with these. If it oscillates, lower Kp. If it stops short, raise kStatic.
-    public static double Kp = 0.0073;
+    public static double Kp = 0.0173;
     public static double Ki = 0.000;
     public static double Kd = 0.0006;
     public static double kStatic = 0.0325; // Minimum power to overcome friction

@@ -143,9 +143,6 @@ public class Turret {
         double robotHeading = robotPose.getHeading();
         double desiredRelativeAngle = Math.toDegrees(targetAngle - robotHeading);
         desiredRelativeAngle = normalizeAngle(desiredRelativeAngle);
-        if (desiredRelativeAngle > 100 && desiredRelativeAngle < 260) {
-            desiredRelativeAngle = (desiredRelativeAngle < 180) ? 100 : 260;
-        }
 
         goToPosition(desiredRelativeAngle);
     }
@@ -153,8 +150,8 @@ public class Turret {
     public void goToPosition(double targetAngleDegrees) {
         lastCommandedAngle = targetAngleDegrees;
         double adjusted = (targetAngleDegrees + 180.0) % 360.0;
-        double mapped = adjusted * (255.0 / 360.0);
-        turretServo.setPosition(1 - (mapped / 255.0));
+        adjusted = Math.max(90, Math.min(270, adjusted));
+        turretServo.setPosition(1 - (adjusted / 360.0));
     }
 
     public double getEncoderAngle() {

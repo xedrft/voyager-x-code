@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import java.util.Locale;
 
+import org.firstinspires.ftc.teamcode.intake.IntakeServo;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 
 @TeleOp(name = "Kicker Servo Test", group = "Test")
@@ -13,22 +14,22 @@ public class KickerServoTest extends OpMode {
     private static final double KICK_POSITION = 0.40;
     private static final double STEP = 0.01;
 
-    private KickerServo kickerServo;
+    private IntakeServo kickerServo;
     private double currentPosition = NORMAL_POSITION;
 
     @Override
     public void init() {
-        kickerServo = new KickerServo(hardwareMap, "kickerServo");
+        kickerServo = new IntakeServo(hardwareMap, "intakeServo");
         currentPosition = NORMAL_POSITION;
     }
 
     @Override
     public void loop() {
         if (gamepad1.aWasPressed()) {
-            kickerServo.kick();
+            kickerServo.intake();
             currentPosition = KICK_POSITION;
         } else if (gamepad1.bWasPressed()) {
-            kickerServo.normal();
+            kickerServo.outtake();
             currentPosition = NORMAL_POSITION;
         }
 
@@ -41,7 +42,7 @@ public class KickerServoTest extends OpMode {
         }
 
         telemetry.addData("Current Position", String.format(Locale.US, "%.2f", currentPosition));
-        telemetry.addData("Controls", "A: Kick, B: Normal, Dpad Up/Down: Adjust");
+        telemetry.addData("Controls", "A: Intake, B: Outtake, Dpad Up/Down: Adjust");
         telemetry.update();
     }
 }

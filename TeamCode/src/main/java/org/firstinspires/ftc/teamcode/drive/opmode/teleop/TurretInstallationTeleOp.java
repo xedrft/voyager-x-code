@@ -2,33 +2,36 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 
 @TeleOp(name = "Turret Installation TeleOp", group = "TeleOp")
 public class TurretInstallationTeleOp extends OpMode {
     private Turret turret;
-    private double currentDegrees = 180;
+    private Servo turretServo;
+    private double currentPos = 0;
 
     @Override
     public void init() {
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", false, false);
-        turret.goToPosition(currentDegrees);
+        turretServo = hardwareMap.get(Servo.class, "turret");
+        turretServo.setPosition(currentPos);
     }
 
     @Override
     public void loop() {
         if (gamepad1.dpadUpWasPressed()) {
-            currentDegrees = Math.min(currentDegrees + 10, 360);
+            currentPos = Math.min(currentPos + 0.01, 1);
         }
 
         if (gamepad1.dpadDownWasPressed()) {
-            currentDegrees = Math.max(currentDegrees - 10, 0);
+            currentPos = Math.max(currentPos - 0.01, 0);
         }
 
-        turret.goToPosition(currentDegrees);
+        turretServo.setPosition(currentPos);
 
-        telemetry.addData("Turret Degrees", currentDegrees);
+        telemetry.addData("Turret Degrees", currentPos);
         telemetry.addData("Turret Voltage", turret.getTurretVoltage());
         telemetry.update();
     }

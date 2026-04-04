@@ -58,7 +58,7 @@ public class BlueTeleOp extends OpMode {
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static double OUTTAKE_DELAY_MS = 500;
+    private static double OUTTAKE_DELAY_MS = 150;
 
     private int spinInterval = 0;
     private boolean goingToPosition = false;
@@ -87,7 +87,6 @@ public class BlueTeleOp extends OpMode {
     /** Tune: clamp total velocity compensation so it can’t run away. */
     private static final double MAX_RPM_VEL_COMP = 250.0;
 
-    private static int CloseCap = 2400;
 
 
     @Override
@@ -277,19 +276,7 @@ public class BlueTeleOp extends OpMode {
         turret.trackTarget(follower.getPose(), targetPose, offset_turret);
 
 
-        if (gamepad1.dpadDownWasPressed()) {
-            rpmCap = !rpmCap;
-            gamepad1.rumble(200);
-        }
 
-        if (!rpmCap) { //if there is NO rpm cap.
-            OUTTAKE_DELAY_MS = 800;
-            offset_turret = -3;
-        } else { //if there IS an RPM cap
-            OUTTAKE_DELAY_MS = 150;
-            offset_turret = 0;
-
-        }
 
 
         double distance = Math.sqrt((targetPose.getX() - follower.getPose().getX())
@@ -297,7 +284,9 @@ public class BlueTeleOp extends OpMode {
                 + (targetPose.getY() - follower.getPose().getY())
                 * (targetPose.getY() - follower.getPose().getY()));
 
-        currentRPM = 11.30942 * distance + 1203.3583;
+        currentRPM = 16.9233 * distance + 1496.8783;
+        turret.setHoodPosition(-0.008879 * distance + 1.4618);
+
 
         // Velocity compensation:
         // - if moving toward goal (radialVelocityIps negative) => decrease RPM
@@ -306,17 +295,7 @@ public class BlueTeleOp extends OpMode {
         velComp = Math.max(-MAX_RPM_VEL_COMP, Math.min(MAX_RPM_VEL_COMP, velComp));
         currentRPM += velComp;
 
-        currentRPM = (currentRPM > CloseCap && rpmCap) ? CloseCap : currentRPM;
 
-
-        if (gamepad1.dpadLeftWasPressed()) {
-            if (CloseCap == 3100) {
-                CloseCap = 2400;
-            } else {
-                CloseCap = 3100;
-            }
-            gamepad1.rumble(200);
-        }
 
         // Update RPM
         turret.setShooterRPM(currentRPM);
