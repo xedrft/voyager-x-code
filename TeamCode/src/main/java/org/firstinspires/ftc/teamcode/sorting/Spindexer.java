@@ -47,7 +47,7 @@ public class Spindexer {
 
     // Settings
     private static final double ANALOG_MAX_VOLTAGE = 3.3;
-    public static double FLAP_ON_DETECTION_DELAY_MS = 250.0;
+    public static double FLAP_ON_DETECTION_DELAY_MS = 450.0;
     public static double COLOR_SCAN_POSITION_TOLERANCE_DEG = 5.0;
     public static double COLOR_SCAN_SETTLE_MS = 150.0;
     public static double COLOR_SCAN_NEXT_SLOT_DELAY_MS = 100.0;

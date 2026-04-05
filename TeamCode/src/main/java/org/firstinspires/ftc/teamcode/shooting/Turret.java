@@ -42,7 +42,7 @@ public class Turret {
     public static double SHOOTER_INTEGRAL_MAX = 2500.0;
 
     // Angle compensation tuning
-    public static double DYNAMIC_OFFSET_MULTIPLIER = 0.17; // Scales how much the angle is adjusted
+    public static double DYNAMIC_OFFSET_MULTIPLIER = 0.1; // Scales how much the angle is adjusted
     public static double DYNAMIC_OFFSET_BASE_ANGLE = 135.0; // The angle where no offset is applied (e.g. 45 deg relative to origin)
 
     private final ElapsedTime shooterPidTimer = new ElapsedTime();
@@ -103,7 +103,7 @@ public class Turret {
     }
 
     public void transferOff() {
-        transferMotor.setPower(0.0);
+        transferMotor.setPower(0.1);
     }
 
     public void transferPower(double power) {
@@ -246,7 +246,7 @@ public class Turret {
         return angle;
     }
 
-    private double clamp(double value, double min, double max) {
+    public double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
 

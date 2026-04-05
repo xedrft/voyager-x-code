@@ -66,6 +66,7 @@ public class BlueTeleOp extends OpMode {
 
 
     private double currentRPM = 2500.0;
+    private double currentHood = 0.5;
     private int shotCount = 0;
 
     // --- velocity-based RPM compensation ---
@@ -286,7 +287,8 @@ public class BlueTeleOp extends OpMode {
                 * (targetPose.getY() - follower.getPose().getY()));
 
         currentRPM = 16.9233 * distance + 1496.8783;
-        turret.setHoodPosition(-0.008879 * distance + 1.4618);
+        currentHood = -0.008879 * distance + 1.4618;
+
 
         // Velocity compensation:
         // - if moving toward goal (radialVelocityIps negative) => decrease RPM
@@ -296,11 +298,16 @@ public class BlueTeleOp extends OpMode {
         currentRPM += velComp;
 
         // Shot compensation: +30 RPM per ball shot since last reset
-        currentRPM += shotCount * 100.0;
+        currentRPM += shotCount * 220.0;
+        currentHood = turret.clamp(currentHood, 0.39, 1.0);
+        currentHood += shotCount * 0.07;
+
 
         // Update RPM
         turret.setShooterRPM(currentRPM);
         turret.on(); // Update velocity
+        //update hood
+        turret.setHoodPosition(currentHood);
 
 
         telemetry.addData("Calculated Distance (in)", distance);
@@ -399,7 +406,7 @@ public class BlueTeleOp extends OpMode {
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS*3) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS*3 + 100) {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();

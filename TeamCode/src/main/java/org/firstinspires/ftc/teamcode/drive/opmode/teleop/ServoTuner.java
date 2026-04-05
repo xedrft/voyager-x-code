@@ -2,34 +2,35 @@ package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 
-@TeleOp(name = "Hood Tuner", group = "Tuning")
-public class HoodTuner extends OpMode {
+@TeleOp(name = "Servo Tuner", group = "Tuning")
+public class ServoTuner extends OpMode {
 
     private Turret turret;
 
-    private double hoodPosition = 0.39;
+    private double Position = 0.39;
     private static final double INCREMENT = 0.01;
+    Servo servo;
 
     @Override
     public void init() {
-        turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", false, false);
-        turret.setHoodPosition(hoodPosition);
+        servo = hardwareMap.get(Servo.class, "intakeServo");
     }
 
     @Override
     public void loop() {
         if (gamepad1.dpad_up && !gamepad1.dpad_down) {
-            hoodPosition = Math.min(1.0, hoodPosition + INCREMENT);
-            turret.setHoodPosition(hoodPosition);
+            Position = Math.min(1.0, Position + INCREMENT);
+            servo.setPosition(Position);
         } else if (gamepad1.dpad_down && !gamepad1.dpad_up) {
-            hoodPosition = Math.max(0.39, hoodPosition - INCREMENT);
-            turret.setHoodPosition(hoodPosition);
+            Position = Math.max(0.0, Position - INCREMENT);
+            servo.setPosition(Position);
         }
 
-        telemetry.addData("Hood Position", String.format(java.util.Locale.US, "%.3f", hoodPosition));
+        telemetry.addData("Hood Position", String.format(java.util.Locale.US, "%.3f", Position));
         telemetry.addData("Controls", "DPAD UP = increase, DPAD DOWN = decrease");
         telemetry.update();
     }
