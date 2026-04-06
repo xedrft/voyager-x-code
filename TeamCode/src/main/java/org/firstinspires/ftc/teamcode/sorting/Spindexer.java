@@ -47,7 +47,7 @@ public class Spindexer {
 
     // Settings
     private static final double ANALOG_MAX_VOLTAGE = 3.3;
-    public static double FLAP_ON_DETECTION_DELAY_MS = 450.0;
+    public static double FLAP_ON_DETECTION_DELAY_MS = 250.0;
     public static double COLOR_SCAN_POSITION_TOLERANCE_DEG = 5.0;
     public static double COLOR_SCAN_SETTLE_MS = 150.0;
     public static double COLOR_SCAN_NEXT_SLOT_DELAY_MS = 100.0;
@@ -76,6 +76,7 @@ public class Spindexer {
     // Shoot: 180 (0.5), 300 (0.833), 60 (0.167)
     public static final double[] SHOOT_ANGLES = {240.0, 120.0, 0.0};
     public static final double[] COLOR_SCAN_ANGLES = {60.0, 300.0, 180.0};
+    public static final double OUTTAKE_ANGLE = 60.0;
 
     public Spindexer(HardwareMap hardwareMap, String motorName, String analogName, String distanceSensorName, ColorSensor colorSensor, IntakeFlap intakeFlap) {
         this.spindexerMotor = hardwareMap.get(DcMotorEx.class, motorName);
@@ -116,6 +117,10 @@ public class Spindexer {
     public void calibrateSetCurrentAsZero() {
         double raw = getAngleFromAnalog();
         angleOffsetDegrees = normalizeAngleDegrees(-raw);
+    }
+
+    public void goToOuttakePosition() {
+        startMoveToAngle(OUTTAKE_ANGLE);
     }
 
 

@@ -343,10 +343,12 @@ public class BlueTeleOp extends OpMode {
 //        }
 
         if (!colorScanInProgress && spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
-            spindexer.setShootIndex(2);
+            spindexer.goToOuttakePosition();
             spinInterval++;
-            if (spinInterval > 30 && spinInterval < 50)
-                barIntake.stop();
+            if (spinInterval > 20 && spinInterval < 40)
+                barIntake.spinOuttake();
+            else if (spinInterval > 40)
+                spindexer.setShootIndex(2);
             else {
                 barIntake.stop();
             }
@@ -384,9 +386,8 @@ public class BlueTeleOp extends OpMode {
 
 
         // Step 1: Turn on transfer wheel and turret wheel
-        if (spindexer.isFull()) {
-            turret.transferOn();
-        }
+        turret.transferOn();
+
         isLocked = true;
 
         // Step 2: Set kicker servo to kick
@@ -399,7 +400,6 @@ public class BlueTeleOp extends OpMode {
         // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 2) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
-                turret.transferOn();
                 shotCount++;
                 spindexer.retreatShoot();
                 outtakeAdvanceCount++;
