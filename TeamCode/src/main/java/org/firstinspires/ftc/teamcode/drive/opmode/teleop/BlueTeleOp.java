@@ -58,7 +58,7 @@ public class BlueTeleOp extends OpMode {
     private boolean singleAtPosition = false;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private static double OUTTAKE_DELAY_MS = 150;
+    private static double OUTTAKE_DELAY_MS = 300;
 
     private int spinInterval = 0;
     private boolean goingToPosition = false;
@@ -345,9 +345,9 @@ public class BlueTeleOp extends OpMode {
         if (!colorScanInProgress && spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
             spindexer.goToOuttakePosition();
             spinInterval++;
-            if (spinInterval > 20 && spinInterval < 40)
+            if (spinInterval > 40 && spinInterval < 60)
                 barIntake.spinOuttake();
-            else if (spinInterval > 40)
+            else if (spinInterval > 60)
                 spindexer.setShootIndex(2);
             else {
                 barIntake.stop();
@@ -406,7 +406,7 @@ public class BlueTeleOp extends OpMode {
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS*3 + 100) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS*3) {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();
