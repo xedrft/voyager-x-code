@@ -161,7 +161,7 @@ public class Turret {
     public void goToPosition(double targetAngleDegrees) {
         lastCommandedAngle = targetAngleDegrees;
         double adjusted = (targetAngleDegrees + 180.0) % 360.0;
-        adjusted = Math.max(90, Math.min(270, adjusted));
+        adjusted = Math.max(45, Math.min(315, adjusted));
         turretServo.setPosition(1 - (adjusted / 360.0));
     }
 

@@ -23,6 +23,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
 import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
+import org.firstinspires.ftc.teamcode.sorting.Lights;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
 @TeleOp(name = "Blue TeleOp", group = "TeleOp")
@@ -81,13 +82,14 @@ public class BlueTeleOp extends OpMode {
     private double radialVelocityIps = 0.0;
 
     /** Tune: RPM change per (inch/sec) of radial velocity. */
-    private static final double RPM_PER_IPS = 4.0;
+    private static final double RPM_PER_IPS = 20.0;
 
     /** Tune: ignore tiny velocity noise. */
     private static final double RADIAL_VEL_DEADBAND_IPS = 1.0;
 
     /** Tune: clamp total velocity compensation so it can’t run away. */
     private static final double MAX_RPM_VEL_COMP = 250.0;
+    Lights lights;
 
 
 
@@ -104,6 +106,7 @@ public class BlueTeleOp extends OpMode {
         turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", true, false);
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
+        lights = new Lights(hardwareMap);
         
 
         //turret.goToPosition(180);
@@ -147,10 +150,12 @@ public class BlueTeleOp extends OpMode {
             intakeServo.outtake();
             barIntake.stop();
         } else if (!spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
+            lights.turnAllOff();
             intakeFlap.on();
             intakeServo.intake();
         }
         else {
+            lights.turnAllOn();
             intakeFlap.off();
             intakeServo.outtake();
         }
@@ -297,10 +302,17 @@ public class BlueTeleOp extends OpMode {
         velComp = Math.max(-MAX_RPM_VEL_COMP, Math.min(MAX_RPM_VEL_COMP, velComp));
         currentRPM += velComp;
 
+        if(currentPose.getX() < 30){
+            currentRPM =16.9233 * 160 + 1496.8783;
+        }
+
         // Shot compensation: +30 RPM per ball shot since last reset
-        currentRPM += shotCount * 220.0;
+        currentRPM += shotCount * 250 + 0.45 * distance; // 0.45 for more aggressive
         currentHood = turret.clamp(currentHood, 0.39, 1.0);
         currentHood += shotCount * 0.07;
+
+
+
 
 
         // Update RPM
@@ -343,15 +355,10 @@ public class BlueTeleOp extends OpMode {
 //        }
 
         if (!colorScanInProgress && spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
-            spindexer.goToOuttakePosition();
+
             spinInterval++;
-            if (spinInterval > 40 && spinInterval < 60)
-                barIntake.spinOuttake();
-            else if (spinInterval > 60)
-                spindexer.setShootIndex(2);
-            else {
-                barIntake.stop();
-            }
+            spindexer.setShootIndex(2);
+            barIntake.stop();
         }
 
         if (outtakeInProgress) {
@@ -392,32 +399,37 @@ public class BlueTeleOp extends OpMode {
 
         // Step 2: Set kicker servo to kick
         lastAdvanceTime = outtakeTimer.milliseconds();
+
+        // Instead of advancing to 3 separate shoot positions, start a 720-degree spin
+        spindexer.startSpin720();
     }
 
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
-        // Check if it's time for the next advanceIntake call
-        if (outtakeAdvanceCount < 2) {
-            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
-                shotCount++;
-                spindexer.retreatShoot();
-                outtakeAdvanceCount++;
-                lastAdvanceTime = currentTime;
-            }
-        } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS*3) {
-                barIntake.spinIntake();
-                spindexer.clearTracking();
-                turret.transferOff();
-                intakeFlap.on();
-                spinInterval = 0;
-                shotCount = 0;
-                spindexer.setIntakeIndex(0);
-                outtakeInProgress = false;
-                isLocked = false;
-            }
+        // If spin mode is active, wait for completion before performing cleanup
+        if (spindexer.isSpinInProgress()) {
+            // Optionally, we could add telemetry or a timeout here
+            return;
         }
+
+        // If we reach here, either spin finished or spin was not used — perform final cleanup
+        // Ensure enough delay has passed since the start to mimic previous timing
+        if (currentTime - lastAdvanceTime < OUTTAKE_DELAY_MS*3) {
+            // wait a bit more (previously the code waited after the second retreat)
+            return;
+        }
+
+        // Cleanup: resume intake, clear tracking, stop transfer
+        barIntake.spinIntake();
+        spindexer.clearTracking();
+        turret.transferOff();
+        intakeFlap.on();
+        spinInterval = 0;
+        shotCount = 0;
+        spindexer.setIntakeIndex(0);
+        outtakeInProgress = false;
+        isLocked = false;
     }
 
     private void startSingleOuttake(char color){

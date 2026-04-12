@@ -17,7 +17,7 @@ public class ServoTuner extends OpMode {
 
     @Override
     public void init() {
-        servo = hardwareMap.get(Servo.class, "intakeServo");
+        servo = hardwareMap.get(Servo.class, "intakeFlapServo");
     }
 
     @Override

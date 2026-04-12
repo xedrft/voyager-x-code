@@ -30,7 +30,7 @@ public class Spindexer {
 
     // --- PIDF Coefficients ---
     // Start with these. If it oscillates, lower Kp. If it stops short, raise kStatic.
-    public static double Kp = 0.0173;
+    public static double Kp = 0.009;
     public static double Ki = 0.000;
     public static double Kd = 0.0006;
     public static double kStatic = 0.0325; // Minimum power to overcome friction
@@ -69,6 +69,13 @@ public class Spindexer {
     private int scanGreenCount = 0;
     private int scanPurpleCount = 0;
     private int scanUnknownCount = 0;
+
+    // Spin mode state: allow spinning a specified number of degrees by driving motor open-loop
+    private boolean spinModeActive = false;
+    private double spinTargetDegrees = 0.0;       // total degrees to spin (positive)
+    private double spinAccumulatedDegrees = 0.0;  // accumulated absolute rotation
+    private double spinPower = 0.6;              // motor power to use while spinning
+    private int spinDirection = 1;               // 1 = positive direction, -1 = negative
 
     // Positions (Degrees)
     // Intake: 0, 120, 240
@@ -127,6 +134,8 @@ public class Spindexer {
     // --- Control Loop ---
 
     public void startMoveToAngle(double targetDegrees) {
+        // Cancel any spin mode when going to a specific angle
+        spinModeActive = false;
         referenceAngle = normalizeAngleDegrees(targetDegrees);
         integralSum = 0.0;
         timer.reset();
@@ -136,40 +145,104 @@ public class Spindexer {
         lastMeasuredAngle = getCalibratedAngle();
     }
 
+    /**
+     * Start an open-loop spin for a given number of degrees (absolute, positive). The controller
+     * will drive the motor at the provided power until the accumulated rotation reaches target.
+     * This is useful when you want the spindexer to make multiple full revolutions.
+     */
+    public void startSpinDegrees(double degrees, double power) {
+        if (degrees <= 0) return;
+        cancelAccurateColorScan();
+        spinModeActive = true;
+        spinTargetDegrees = degrees;
+        spinAccumulatedDegrees = 0.0;
+        spinPower = Math.max(0.0, Math.min(1.0, Math.abs(power)));
+        spinDirection = 1; // default: positive direction
+
+        // Seed lastMeasuredAngle so first delta is small/accurate
+        lastMeasuredAngle = getCalibratedAngle();
+        timer.reset();
+    }
+
+    public void startSpin720() {
+        // Reasonable default power; adjust if needed
+        startSpinDegrees(720.0, 0.6);
+    }
+
+    public boolean isSpinInProgress() {
+        return spinModeActive;
+    }
+
+    private boolean pidInitialized = false;
+
     public boolean update() {
-        // Ball detection logic
         double dt = timer.seconds();
         timer.reset();
+
+        // Protect against tiny / bad dt
+        if (dt <= 1e-4) dt = 1e-4;
         lastDt = dt;
 
-        // adaptive detection tolerance based on angular velocity
-        // Reasonable defaults (tune these):
-        // BASE_TOL: starting tolerance in degrees when stationary
-        // MIN_TOL: minimum tolerance we allow (to avoid negative/zero)
-        // VELOCITY_FACTOR: how much to reduce tolerance per (deg/s) of angular velocity
         final double BASE_TOL = 15.0;
-        final double MIN_TOL = 3.0; // don't go below this
-        final double VELOCITY_FACTOR = 0.04; // tuned recommendation: 0.01..0.05
+        final double MIN_TOL = 3.0;
+        final double VELOCITY_FACTOR = 0.04;
+
+        // Optional: helps overcome static friction from rest
+        final double MIN_MOVE_POWER = 0.12; // tune this, maybe 0.08 to 0.18
 
         double currentAngle = getCalibratedAngle();
         lastCurrentAngle = currentAngle;
-        double velocity = smallestAngleDifference(currentAngle, lastMeasuredAngle) / Math.max(dt, 1e-6);
+
+        // Initialize derivative state on first loop
+        if (!pidInitialized) {
+            lastMeasuredAngle = currentAngle;
+            pidInitialized = true;
+        }
+
+        // Compute angular change/velocity once
+        double angleDelta = smallestAngleDifference(currentAngle, lastMeasuredAngle);
+        double velocity = angleDelta / dt;
+        lastMeasuredAngle = currentAngle;
         lastVelocity = velocity;
 
+        // If spin mode is active, accumulate absolute rotation and drive motor open-loop
+        if (spinModeActive) {
+            spinAccumulatedDegrees += Math.abs(angleDelta);
+            // Drive motor directly at spinPower in chosen direction
+            spindexerMotor.setPower(spinDirection * spinPower);
+
+            // Check completion
+            if (spinAccumulatedDegrees >= spinTargetDegrees) {
+                // Stop spinning and restore PID reference to current heading
+                spinModeActive = false;
+                spindexerMotor.setPower(0.0);
+                referenceAngle = normalizeAngleDegrees(currentAngle);
+                integralSum = 0.0;
+                // Reset timers/state to avoid derivative spikes
+                timer.reset();
+                pidInitialized = true;
+            }
+
+            // Still return to allow telemetry etc.
+            updateColorScan(currentAngle);
+            return true;
+        }
+
+        // Update color scan using current angle
         updateColorScan(currentAngle);
 
+        // -------------------------------
+        // Ball detection logic
+        // -------------------------------
         if (distanceSensor.getState() && isDetectionEnabled()) {
-
-            // adaptive tolerance: reduce base tolerance by factor * |velocity|, but clamp
             double adaptiveTol = Math.max(MIN_TOL, BASE_TOL - VELOCITY_FACTOR * Math.abs(velocity));
             lastAdaptiveTol = adaptiveTol;
 
             for (int i = 0; i < 3; i++) {
                 if (Math.abs(smallestAngleDifference(currentAngle, INTAKE_ANGLES[i])) < adaptiveTol) {
-                    // Ball detected at slot i
                     if (filled[i] == '_') {
                         filled[i] = 'X';
-                        // Auto-advance if not full
+
                         if (!isFull()) {
                             advanceIntake();
                         }
@@ -179,37 +252,33 @@ public class Spindexer {
             }
         }
 
-
+        // -------------------------------
+        // PID control
+        // -------------------------------
         double error = smallestAngleDifference(referenceAngle, currentAngle);
         lastError = error;
 
-        if (dt <= 0) dt = 1e-6; // safety
-
-        // 1. Integral Zoning: Only integrate if error is small (prevents windup)
+        // Integral zoning
         if (Math.abs(error) < 15.0) {
             integralSum += error * dt;
         } else {
             integralSum = 0.0;
         }
 
-        // 2. Derivative on Measurement: Calculates velocity directly
-        // (Avoids "kick" when changing target)
-        double velocity2 = smallestAngleDifference(currentAngle, lastMeasuredAngle) / dt;
-        lastMeasuredAngle = currentAngle;
-
-        // 3. Calculate Terms
         double pTerm = Kp * error;
         double iTerm = Ki * integralSum;
-        double dTerm = -Kd * velocity2; // Negative because it opposes motion
-
-        // 4. Feedforward (kStatic): Helps overcome friction near target
-        double fTerm = Math.signum(error) * kStatic;
+        double dTerm = -Kd * velocity; // derivative on measurement
+        double fTerm = (Math.abs(error) > 0.5) ? Math.signum(error) * kStatic : 0.0;
 
         double out = pTerm + iTerm + dTerm + fTerm;
 
+        // Minimum power to break stiction when error is meaningful
+        if (Math.abs(error) > 2.0 && Math.abs(out) < MIN_MOVE_POWER) {
+            out = Math.signum(error) * MIN_MOVE_POWER;
+        }
+
         // Clamp
-        if (out > 1.0) out = 1.0;
-        if (out < -1.0) out = -1.0;
+        out = Math.max(-1.0, Math.min(1.0, out));
 
         lastOutput = out;
         spindexerMotor.setPower(out);
@@ -228,7 +297,7 @@ public class Spindexer {
 
     public double getReferenceAngle() { return referenceAngle; }
 
-// --- Tracking & Positions ---
+    // --- Tracking & Positions ---
 
     public void startAccurateColorScan() {
         if (colorSensor == null || colorScanState != ColorScanState.IDLE) {
