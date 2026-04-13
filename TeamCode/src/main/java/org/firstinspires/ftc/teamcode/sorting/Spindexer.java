@@ -164,9 +164,9 @@ public class Spindexer {
         timer.reset();
     }
 
-    public void startSpin720() {
+    public void startSpin720(double power) {
         // Reasonable default power; adjust if needed
-        startSpinDegrees(720.0, 0.6);
+        startSpinDegrees(720.0, power);
     }
 
     public boolean isSpinInProgress() {

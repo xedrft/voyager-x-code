@@ -36,12 +36,9 @@ public class BlueTeleOp extends OpMode {
     private BarIntake barIntake;
     private IntakeFlap intakeFlap;
 
-    private Servo ledHeadlight;
-    private Servo ledHeadlight2;
 
     private Spindexer spindexer;
     private int offset_turret = 0;
-    private KickerServo kickerServo;
     private IntakeServo intakeServo;
     private Turret turret;
     private ColorSensor colorSensor;
@@ -49,7 +46,7 @@ public class BlueTeleOp extends OpMode {
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
     private static final double OFFSET = Math.toRadians(180.0);
-    private Pose targetPose = new Pose(0, 144, 0); // Fixed target
+    private Pose targetPose = new Pose(12, 132, 0); // Fixed target
 
     // Outtake routine state
     private boolean outtakeInProgress = false;
@@ -57,11 +54,11 @@ public class BlueTeleOp extends OpMode {
     boolean rpmCap = true;
     private boolean singleOuttakeInProgress = false;
     private boolean singleAtPosition = false;
-    private int outtakeAdvanceCount = 0;
-    private double lastAdvanceTime = 0;
-    private static double OUTTAKE_DELAY_MS = 300;
+    private double startTime = 0;
+    private static double OUTTAKE_DELAY_MS = 150;
 
-    private int spinInterval = 0;
+    private ElapsedTime spitTimer = new ElapsedTime();
+    private boolean spitInit = false;
     private boolean goingToPosition = false;
     private static Pose GO_TO_TARGET = new Pose(18.53, 58.42, 2.67);
 
@@ -291,7 +288,7 @@ public class BlueTeleOp extends OpMode {
                 + (targetPose.getY() - follower.getPose().getY())
                 * (targetPose.getY() - follower.getPose().getY()));
 
-        currentRPM = 16.9233 * distance + 1496.8783;
+        currentRPM = 17.1 * distance + 1696.8783;
         currentHood = -0.008879 * distance + 1.4618;
 
 
@@ -303,11 +300,10 @@ public class BlueTeleOp extends OpMode {
         currentRPM += velComp;
 
         if(currentPose.getX() < 30){
-            currentRPM =16.9233 * 160 + 1496.8783;
+            currentRPM = 4100;
         }
 
-        // Shot compensation: +30 RPM per ball shot since last reset
-        currentRPM += shotCount * 250 + 0.45 * distance; // 0.45 for more aggressive
+        currentRPM += shotCount * (250 + 0.2 * distance); // 0.3 for more aggressive
         currentHood = turret.clamp(currentHood, 0.39, 1.0);
         currentHood += shotCount * 0.07;
 
@@ -342,23 +338,26 @@ public class BlueTeleOp extends OpMode {
             handleSingleOuttake();
         }
 
-
-//        if (spindexer.isFull()) {
-//            ledHeadlight.setPosition(1.0);
-//            ledHeadlight2.setPosition(1.0);
-//            if (!lastFull) gamepad2.rumble(2000);
-//            lastFull = true;
-//        } else {
-//            ledHeadlight.setPosition(0.0);
-//            ledHeadlight2.setPosition(0.0);
-//            lastFull = false;
-//        }
-
+        // spit out
         if (!colorScanInProgress && spindexer.isFull() && !outtakeInProgress && !singleOuttakeInProgress) {
-
-            spinInterval++;
-            spindexer.setShootIndex(2);
-            barIntake.stop();
+            if (!spitInit) {
+                spitTimer.reset();
+                spitInit = true;
+            }
+            spindexer.goToOuttakePosition();
+            double spitElapsed = spitTimer.milliseconds();
+            if (spitElapsed > 100 && spitElapsed < 200) {
+                barIntake.spinOuttake();
+            }
+            else if (spitElapsed >= 200) {
+                spindexer.setShootIndex(2);
+                barIntake.stop();
+            }
+            else {
+                barIntake.stop();
+            }
+        } else {
+            spitInit = false;
         }
 
         if (outtakeInProgress) {
@@ -387,9 +386,7 @@ public class BlueTeleOp extends OpMode {
     private void startOuttakeRoutine() {
         outtakeInProgress = true;
         intakeFlap.off();
-        outtakeAdvanceCount = 0;
         outtakeTimer.reset();
-        lastAdvanceTime = 0;
 
 
         // Step 1: Turn on transfer wheel and turret wheel
@@ -398,15 +395,18 @@ public class BlueTeleOp extends OpMode {
         isLocked = true;
 
         // Step 2: Set kicker servo to kick
-        lastAdvanceTime = outtakeTimer.milliseconds();
+        startTime = outtakeTimer.milliseconds();
 
         // Instead of advancing to 3 separate shoot positions, start a 720-degree spin
-        spindexer.startSpin720();
+        spindexer.startSpin720(follower.getPose().getY() < 30 ? 0.3 : 0.5);
     }
 
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
+        if (currentTime - startTime > OUTTAKE_DELAY_MS * (shotCount + 1) && shotCount < 3) {
+            shotCount++;
+        }
         // If spin mode is active, wait for completion before performing cleanup
         if (spindexer.isSpinInProgress()) {
             // Optionally, we could add telemetry or a timeout here
@@ -415,7 +415,7 @@ public class BlueTeleOp extends OpMode {
 
         // If we reach here, either spin finished or spin was not used — perform final cleanup
         // Ensure enough delay has passed since the start to mimic previous timing
-        if (currentTime - lastAdvanceTime < OUTTAKE_DELAY_MS*3) {
+        if (currentTime - startTime < (follower.getPose().getY() < 30 ? 1500 : 900)) {
             // wait a bit more (previously the code waited after the second retreat)
             return;
         }
@@ -425,7 +425,6 @@ public class BlueTeleOp extends OpMode {
         spindexer.clearTracking();
         turret.transferOff();
         intakeFlap.on();
-        spinInterval = 0;
         shotCount = 0;
         spindexer.setIntakeIndex(0);
         outtakeInProgress = false;
