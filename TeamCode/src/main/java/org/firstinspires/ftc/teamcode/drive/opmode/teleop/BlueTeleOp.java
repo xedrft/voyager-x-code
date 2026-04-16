@@ -398,7 +398,7 @@ public class BlueTeleOp extends OpMode {
         startTime = outtakeTimer.milliseconds();
 
         // Instead of advancing to 3 separate shoot positions, start a 720-degree spin
-        spindexer.startSpin720(follower.getPose().getY() < 30 ? 0.3 : 0.5);
+        spindexer.startSpinDegrees(480, follower.getPose().getY() < 30 ? 0.3 : 0.5);
     }
 
     private void handleOuttakeRoutine() {
@@ -413,12 +413,6 @@ public class BlueTeleOp extends OpMode {
             return;
         }
 
-        // If we reach here, either spin finished or spin was not used — perform final cleanup
-        // Ensure enough delay has passed since the start to mimic previous timing
-        if (currentTime - startTime < (follower.getPose().getY() < 30 ? 1500 : 900)) {
-            // wait a bit more (previously the code waited after the second retreat)
-            return;
-        }
 
         // Cleanup: resume intake, clear tracking, stop transfer
         barIntake.spinIntake();
