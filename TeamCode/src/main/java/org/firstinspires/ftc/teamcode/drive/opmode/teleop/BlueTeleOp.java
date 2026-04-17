@@ -58,7 +58,7 @@ public class BlueTeleOp extends OpMode {
     private boolean singleOuttakeInProgress = false;
     private boolean singleAtPosition = false;
     private double startTime = 0;
-    private static double OUTTAKE_DELAY_MS = 200;
+    private static double OUTTAKE_DELAY_MS = 300;
 
     private ElapsedTime spitTimer = new ElapsedTime();
     private boolean spitInit = false;
@@ -285,23 +285,23 @@ public class BlueTeleOp extends OpMode {
 
         // Turret tracking: use velocity compensation when shooting while moving
         // If robot Y position is > 30, compute adjusted aiming point by subtracting robot velocity * flightTime from target
-        if (follower.getPose().getY() > 30) {
-            Vector vel = follower.getVelocity();
-            if (vel == null) {
-                turret.trackTarget(follower.getPose(), targetPose, offset_turret);
-            } else {
-                double flightTime = 1.0; // 1 second constant as requested
-                double adjustX = vel.getXComponent() * flightTime;
-                double adjustY = vel.getYComponent() * flightTime;
-                Pose adjustedTarget = new Pose(targetPose.getX() - adjustX, targetPose.getY() - adjustY, targetPose.getHeading());
-                turret.trackTarget(follower.getPose(), adjustedTarget, offset_turret);
-                telemetry.addData("CompAdjustX", adjustX);
-                telemetry.addData("CompAdjustY", adjustY);
-                telemetry.addData("AdjustedTarget", "(" + adjustedTarget.getX() + ", " + adjustedTarget.getY() + ")");
-            }
-        } else {
+//        if (follower.getPose().getY() > 30) {
+//            Vector vel = follower.getVelocity();
+//            if (vel == null) {
+//                turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+//            } else {
+//                double flightTime = 1.0; // 1 second constant as requested
+//                double adjustX = vel.getXComponent() * flightTime;
+//                double adjustY = vel.getYComponent() * flightTime;
+//                Pose adjustedTarget = new Pose(targetPose.getX() - adjustX, targetPose.getY() - adjustY, targetPose.getHeading());
+//                turret.trackTarget(follower.getPose(), adjustedTarget, offset_turret);
+//                telemetry.addData("CompAdjustX", adjustX);
+//                telemetry.addData("CompAdjustY", adjustY);
+//                telemetry.addData("AdjustedTarget", "(" + adjustedTarget.getX() + ", " + adjustedTarget.getY() + ")");
+//            }
+//        } else {
             turret.trackTarget(follower.getPose(), targetPose, offset_turret);
-        }
+//        }
 
 
 
@@ -323,7 +323,10 @@ public class BlueTeleOp extends OpMode {
         currentRPM += velComp;
 
         if(currentPose.getY() < 30){
-            currentRPM = 4100;
+            if (currentPose.getX() > 48 || currentPose.getX() < 96)
+                currentRPM = 17.1 * distance + 1696.8783;
+            else
+                currentRPM = 4100;
         }
 
         currentRPM += shotCount * (250 + 0.2 * distance); // 0.3 for more aggressive
@@ -367,10 +370,10 @@ public class BlueTeleOp extends OpMode {
             }
             spindexer.goToOuttakePosition();
             double spitElapsed = spitTimer.milliseconds();
-            if (spitElapsed > 100 && spitElapsed < 200) {
+            if (spitElapsed > 125 && spitElapsed < 225) {
                 barIntake.spinOuttake();
             }
-            else if (spitElapsed >= 200) {
+            else if (spitElapsed >= 225) {
                 spindexer.setShootIndex(2);
                 barIntake.stop();
             }
