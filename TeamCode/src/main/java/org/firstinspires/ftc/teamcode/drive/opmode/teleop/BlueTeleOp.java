@@ -26,6 +26,8 @@ import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Lights;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
+import com.pedropathing.math.Vector; // added for velocity compensation
+
 @TeleOp(name = "Blue TeleOp", group = "TeleOp")
 public class BlueTeleOp extends OpMode {
     private Follower follower;
@@ -42,6 +44,7 @@ public class BlueTeleOp extends OpMode {
     private IntakeServo intakeServo;
     private Turret turret;
     private ColorSensor colorSensor;
+    //private KickerServo kickerServo;
     private ElapsedTime loopTimer;
     private ElapsedTime outtakeTimer;
     private LynxModule expansionHub;
@@ -55,7 +58,7 @@ public class BlueTeleOp extends OpMode {
     private boolean singleOuttakeInProgress = false;
     private boolean singleAtPosition = false;
     private double startTime = 0;
-    private static double OUTTAKE_DELAY_MS = 150;
+    private static double OUTTAKE_DELAY_MS = 200;
 
     private ElapsedTime spitTimer = new ElapsedTime();
     private boolean spitInit = false;
@@ -66,6 +69,9 @@ public class BlueTeleOp extends OpMode {
     private double currentRPM = 2500.0;
     private double currentHood = 0.5;
     private int shotCount = 0;
+    private int outtakeAdvanceCount = 0;
+    private double lastAdvanceTime = 0;
+    private int spinInterval = 0;
 
     // --- velocity-based RPM compensation ---
     private Pose lastPose = null;
@@ -104,7 +110,7 @@ public class BlueTeleOp extends OpMode {
         loopTimer = new ElapsedTime();
         outtakeTimer = new ElapsedTime();
         lights = new Lights(hardwareMap);
-        
+
 
         //turret.goToPosition(180);
 //        ledHeadlight = hardwareMap.get(Servo.class, "ledLight");
@@ -277,8 +283,25 @@ public class BlueTeleOp extends OpMode {
             startOuttakeRoutine();
         }
 
-        turret.trackTarget(follower.getPose(), targetPose, offset_turret);
-
+        // Turret tracking: use velocity compensation when shooting while moving
+        // If robot Y position is > 30, compute adjusted aiming point by subtracting robot velocity * flightTime from target
+        if (follower.getPose().getY() > 30) {
+            Vector vel = follower.getVelocity();
+            if (vel == null) {
+                turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+            } else {
+                double flightTime = 1.0; // 1 second constant as requested
+                double adjustX = vel.getXComponent() * flightTime;
+                double adjustY = vel.getYComponent() * flightTime;
+                Pose adjustedTarget = new Pose(targetPose.getX() - adjustX, targetPose.getY() - adjustY, targetPose.getHeading());
+                turret.trackTarget(follower.getPose(), adjustedTarget, offset_turret);
+                telemetry.addData("CompAdjustX", adjustX);
+                telemetry.addData("CompAdjustY", adjustY);
+                telemetry.addData("AdjustedTarget", "(" + adjustedTarget.getX() + ", " + adjustedTarget.getY() + ")");
+            }
+        } else {
+            turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+        }
 
 
 
@@ -299,7 +322,7 @@ public class BlueTeleOp extends OpMode {
         velComp = Math.max(-MAX_RPM_VEL_COMP, Math.min(MAX_RPM_VEL_COMP, velComp));
         currentRPM += velComp;
 
-        if(currentPose.getX() < 30){
+        if(currentPose.getY() < 30){
             currentRPM = 4100;
         }
 
@@ -321,8 +344,6 @@ public class BlueTeleOp extends OpMode {
         telemetry.addData("Calculated Distance (in)", distance);
         telemetry.addData("Radial Vel (ips)", radialVelocityIps);
         telemetry.addData("RPM Vel Comp", velComp);
-        telemetry.addData("Shot Count", shotCount);
-        telemetry.addData("Current target RPM:", currentRPM);
 
         if (!colorScanInProgress && gamepad1.leftStickButtonWasPressed()) {
             startSingleOuttake('P');
@@ -386,7 +407,9 @@ public class BlueTeleOp extends OpMode {
     private void startOuttakeRoutine() {
         outtakeInProgress = true;
         intakeFlap.off();
+        outtakeAdvanceCount = 0;
         outtakeTimer.reset();
+        lastAdvanceTime = 0;
 
 
         // Step 1: Turn on transfer wheel and turret wheel
@@ -395,34 +418,34 @@ public class BlueTeleOp extends OpMode {
         isLocked = true;
 
         // Step 2: Set kicker servo to kick
-        startTime = outtakeTimer.milliseconds();
-
-        // Instead of advancing to 3 separate shoot positions, start a 720-degree spin
-        spindexer.startSpinDegrees(480, follower.getPose().getY() < 30 ? 0.3 : 0.5);
+        lastAdvanceTime = outtakeTimer.milliseconds();
     }
+
 
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
-        if (currentTime - startTime > OUTTAKE_DELAY_MS * (shotCount + 1) && shotCount < 3) {
-            shotCount++;
+        // Check if it's time for the next advanceIntake call
+        if (outtakeAdvanceCount < 2) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+                shotCount++;
+                spindexer.retreatShoot();
+                outtakeAdvanceCount++;
+                lastAdvanceTime = currentTime;
+            }
+        } else {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 3) {
+                barIntake.spinIntake();
+                spindexer.clearTracking();
+                turret.transferOff();
+                intakeFlap.on();
+                spinInterval = 0;
+                shotCount = 0;
+                spindexer.setIntakeIndex(0);
+                outtakeInProgress = false;
+                isLocked = false;
+            }
         }
-        // If spin mode is active, wait for completion before performing cleanup
-        if (spindexer.isSpinInProgress()) {
-            // Optionally, we could add telemetry or a timeout here
-            return;
-        }
-
-
-        // Cleanup: resume intake, clear tracking, stop transfer
-        barIntake.spinIntake();
-        spindexer.clearTracking();
-        turret.transferOff();
-        intakeFlap.on();
-        shotCount = 0;
-        spindexer.setIntakeIndex(0);
-        outtakeInProgress = false;
-        isLocked = false;
     }
 
     private void startSingleOuttake(char color){

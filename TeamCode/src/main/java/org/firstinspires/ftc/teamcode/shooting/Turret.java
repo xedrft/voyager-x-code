@@ -42,7 +42,7 @@ public class Turret {
     public static double SHOOTER_INTEGRAL_MAX = 2500.0;
 
     // Angle compensation tuning
-    public static double DYNAMIC_OFFSET_MULTIPLIER = 0.1; // Scales how much the angle is adjusted
+    public static double DYNAMIC_OFFSET_MULTIPLIER = 0.07; // Scales how much the angle is adjusted
     public static double DYNAMIC_OFFSET_BASE_ANGLE = 135.0; // The angle where no offset is applied (e.g. 45 deg relative to origin)
 
     private final ElapsedTime shooterPidTimer = new ElapsedTime();
@@ -78,7 +78,7 @@ public class Turret {
     }
 
     public void setHoodPosition(double position) {
-        hoodServo.setPosition(clamp(position, 0.39, 1.0));
+        hoodServo.setPosition(clamp(position, 0.58, 1.0));
     }
 
     public double getHoodPosition() {
