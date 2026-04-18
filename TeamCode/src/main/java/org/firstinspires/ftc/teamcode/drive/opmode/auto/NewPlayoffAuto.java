@@ -37,7 +37,7 @@ public class NewPlayoffAuto extends OpMode {
     private Turret turret;
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double OUTTAKE_DELAY_MS = 150;
+    public static double OUTTAKE_DELAY_MS = 300;
     Pose targetPose = new Pose(12, 132, 0); // Fixed Blue Target
     // -------------------- State machine --------------------
     private int pathState = 0;
@@ -51,6 +51,7 @@ public class NewPlayoffAuto extends OpMode {
 
     private int targetAngle = 282;
 
+
     private void setState(int s) {
         if (s != lastState) {
             lastState = s;
@@ -63,12 +64,16 @@ public class NewPlayoffAuto extends OpMode {
     // -------------------- Outtake routine --------------------
     private final ElapsedTime outtakeTimer = new ElapsedTime();
     private boolean outtakeInProgress = false;
-    private double startTime = 0.0;
 
     private int shotCount = 0;
 
     private ElapsedTime spitTimer = new ElapsedTime();
     private boolean spitInit = false;
+
+    // --- Shot/outtake state variables (from BlueTeleOp) ---
+    private int outtakeAdvanceCount = 0;
+    private double lastAdvanceTime = 0;
+
 
     @Override
     public void init() {
@@ -131,11 +136,11 @@ public class NewPlayoffAuto extends OpMode {
         turret.goToPosition(targetAngle);
 
         double currentRPM = FIXED_RPM;
-        double currentHood = 0.39;
+        double currentHood = 0.58;
 
         currentRPM += shotCount * (300);
-        currentHood = turret.clamp(currentHood, 0.39, 1.0);
-        currentHood += shotCount * 0.07;
+        currentHood = turret.clamp(currentHood, 0.58, 1.0);
+        currentHood += shotCount * 0.05;
         
         turret.setShooterRPM(currentRPM);
         turret.setHoodPosition(currentHood);
@@ -334,37 +339,41 @@ public class NewPlayoffAuto extends OpMode {
     private void startOuttakeRoutine() {
         outtakeInProgress = true;
         intakeFlap.off();
+        outtakeAdvanceCount = 0;
         outtakeTimer.reset();
-        startTime = outtakeTimer.milliseconds();
-        shotCount = 0;
+        lastAdvanceTime = 0;
 
+
+        // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
-        spindexer.startSpin720(0.3);
+
+        // Step 2: Set kicker servo to kick
+        lastAdvanceTime = outtakeTimer.milliseconds();
     }
+
 
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
-        // Increment shotCount based on MS elapsed roughly corresponding to outtakes
-        if (currentTime - startTime > OUTTAKE_DELAY_MS * (shotCount + 1) && shotCount < 3) {
-            shotCount++;
+        // Check if it's time for the next advanceIntake call
+        if (outtakeAdvanceCount < 2) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+                shotCount++;
+                spindexer.retreatShoot();
+                outtakeAdvanceCount++;
+                lastAdvanceTime = currentTime;
+            }
+        } else {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 3) {
+                barIntake.spinIntake();
+                spindexer.clearTracking();
+                turret.transferOff();
+                intakeFlap.on();
+                shotCount = 0;
+                spindexer.setIntakeIndex(0);
+                outtakeInProgress = false;
+            }
         }
-
-        if (spindexer.isSpinInProgress()) {
-            return;
-        }
-
-        if (currentTime - startTime < 900) {
-            return;
-        }
-
-        barIntake.spinIntake();
-        spindexer.clearTracking();
-        turret.transferOff();
-        intakeFlap.on();
-        shotCount = 0;
-        spindexer.setIntakeIndex(0);
-        outtakeInProgress = false;
     }
 
     public static class Paths {
@@ -446,6 +455,8 @@ public class NewPlayoffAuto extends OpMode {
         }
     }
 }
+
+
 
 
 
