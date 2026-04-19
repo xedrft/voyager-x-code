@@ -168,19 +168,25 @@ public class BlueTeleOp extends OpMode {
         // --- lock mode drive control ---
         // When locked, LockMode runs a tiny oscillation path to keep translational/heading PIDs engaged.
         // Otherwise, ensure we are in normal teleop drive.
-        if (isLocked && gamepad1.left_trigger > 0.5) {
-            //lockMode.lockPosition();
-        } else {
-            lockMode.unlockPosition();
-            follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y,
-                    -gamepad1.left_stick_x,
-                    -gamepad1.right_stick_x,
-                    false,
-                    OFFSET
-            );
-        }
-
+//        if (isLocked && gamepad1.left_trigger > 0.5) {
+//            lockMode.lockPosition();
+//        } else {
+//            lockMode.unlockPosition();
+//            follower.setTeleOpDrive(
+//                    -gamepad1.left_stick_y,
+//                    -gamepad1.left_stick_x,
+//                    -gamepad1.right_stick_x,
+//                    false,
+//                    OFFSET
+//            );
+//        }
+        follower.setTeleOpDrive(
+                -gamepad1.left_stick_y,
+                -gamepad1.left_stick_x,
+                -gamepad1.right_stick_x,
+                false,
+                OFFSET
+        );
         // --- go-to-position on A button ---
         if (gamepad1.aWasPressed()) {
             Pose cur = follower.getPose();
@@ -431,7 +437,7 @@ public class BlueTeleOp extends OpMode {
 
         // Check if it's time for the next advanceIntake call
         if (outtakeAdvanceCount < 2) {
-            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 2 : OUTTAKE_DELAY_MS)) {
+            if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 1.5 : OUTTAKE_DELAY_MS)) {
                 shotCount++;
                 spindexer.retreatShoot();
                 outtakeAdvanceCount++;

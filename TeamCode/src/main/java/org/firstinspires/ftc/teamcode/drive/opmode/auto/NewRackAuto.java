@@ -20,9 +20,9 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@Autonomous(name = "New Playoff Auto", group = "Autonomous")
+@Autonomous(name = "New Rack Auto", group = "Autonomous")
 @Configurable
-public class NewPlayoffAuto extends OpMode {
+public class NewRackAuto extends OpMode {
 
     // -------------------- Panels + Pedro --------------------
     private TelemetryManager panelsTelemetry;
@@ -49,7 +49,7 @@ public class NewPlayoffAuto extends OpMode {
     private static final long SETTLE_DELAY_MS = 250;
     public static final int FIXED_RPM = 4000;
 
-    private int targetAngle = 287;
+    private int targetAngle = 50;
 
 
     private void setState(int s) {
@@ -80,7 +80,7 @@ public class NewPlayoffAuto extends OpMode {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(39.000, 9.000, Math.toRadians(180)));
+        follower.setStartingPose(new Pose(120, 120, Math.toRadians(0)));
 
         // Subsystems
         barIntake = new BarIntake(hardwareMap, "barIntake", false);
@@ -111,13 +111,13 @@ public class NewPlayoffAuto extends OpMode {
 
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
-        targetAngle = 287;
+        targetAngle = 50; // Adjust if necessary
     }
 
     @Override
     public void start() {
         outtakeInProgress = false;
-        setState(0); // shoot presets immediately
+        setState(0);
         stateTimer.reset();
 
         turret.on();
@@ -139,8 +139,7 @@ public class NewPlayoffAuto extends OpMode {
         double currentHood = 0.58;
 
         currentRPM += shotCount * (300);
-        currentHood = turret.clamp(currentHood, 0.58, 1.0);
-
+        
         turret.setShooterRPM(currentRPM);
         turret.setHoodPosition(currentHood);
         turret.on();
@@ -181,137 +180,135 @@ public class NewPlayoffAuto extends OpMode {
         }
 
         switch (pathState) {
-            case 0: // Shoot presets immediately
-                if (stateTimer.milliseconds() > 4000) { // short delay for turret
-                    startOuttakeRoutine();
-                    setState(1);
-                }
+            case 0:
+                follower.followPath(paths.PresetShoot);
+                setState(1);
                 break;
 
             case 1:
-                targetAngle = 2;
-                follower.followPath(paths.PickupCorner);
-                setState(2);
-                break;
-
-            case 2:
                 if (!follower.isBusy()) {
                     if (!isSettling) {
                         isSettling = true;
                         settleTimer.reset();
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
-                        follower.followPath(paths.ShootCorner);
-                        setState(3);
+                        startOuttakeRoutine();
+                        setState(2);
                     }
                 }
+                break;
+
+            case 2:
+                follower.followPath(paths.PickupRack2);
+                setState(3);
                 break;
 
             case 3:
                 if (!follower.isBusy()) {
-                    if (!isSettling) {
-                        isSettling = true;
-                        settleTimer.reset();
-                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
-                        startOuttakeRoutine();
-                        setState(4);
-                    }
+                    follower.followPath(paths.ShootRack2);
+                    setState(4);
                 }
                 break;
 
             case 4:
-                targetAngle = 327;
-                follower.followPath(paths.PickupSpike);
-                setState(5);
-                break;
-
-            case 5:
-                if (!follower.isBusy()) {
-                    if (!isSettling) {
-                        isSettling = true;
-                        settleTimer.reset();
-                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
-                        follower.followPath(paths.ShootSpike);
-                        setState(6);
-                    }
-                }
-                break;
-
-            case 6:
                 if (!follower.isBusy()) {
                     if (!isSettling) {
                         isSettling = true;
                         settleTimer.reset();
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
                         startOuttakeRoutine();
-                        setState(7);
+                        setState(5);
                     }
                 }
                 break;
 
-            case 7:
-                follower.followPath(paths.PickupStray1);
-                setState(8);
+            // GateIntake 1
+            case 5:
+                follower.followPath(paths.GateIntake);
+                setState(6);
                 break;
                 
-            case 8:
+            case 6:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.PickupStray2);
-                    setState(9);
+                    follower.followPath(paths.ShootGateIntake);
+                    setState(7);
                 }
+                break;
+                
+            case 7:
+                if (!follower.isBusy()) {
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        startOuttakeRoutine();
+                        setState(8);
+                    }
+                }
+                break;
+                
+            // GateIntake 2
+            case 8:
+                follower.followPath(paths.GateIntake);
+                setState(9);
                 break;
                 
             case 9:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.PickupStray3);
+                    follower.followPath(paths.ShootGateIntake);
                     setState(10);
                 }
                 break;
                 
             case 10:
-                if(!follower.isBusy()) {
-                    follower.followPath(paths.ShootStray);
-                    setState(11);
-                }
-                break;
-
-            case 11:
                 if (!follower.isBusy()) {
                     if (!isSettling) {
                         isSettling = true;
                         settleTimer.reset();
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
                         startOuttakeRoutine();
-                        setState(12); // Continue to repeat stray pickup
+                        setState(11);
                     }
                 }
                 break;
+
+            // GateIntake 3
+            case 11:
+                follower.followPath(paths.GateIntake);
+                setState(12);
+                break;
                 
             case 12:
-                follower.followPath(paths.PickupStray1);
-                setState(13);
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.ShootGateIntake);
+                    setState(13);
+                }
                 break;
                 
             case 13:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.PickupStray2);
-                    setState(14);
-                }
-                break;
-                
-            case 14:
-                if (!follower.isBusy()) {
-                    follower.followPath(paths.PickupStray3);
-                    setState(15);
-                }
-                break;
-                
-            case 15:
-                if(!follower.isBusy()) {
-                    follower.followPath(paths.ShootStray);
-                    setState(16);
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                        startOuttakeRoutine();
+                        setState(14);
+                    }
                 }
                 break;
 
+            // PickupRack1
+            case 14:
+                follower.followPath(paths.PickupRack1);
+                setState(15);
+                break;
+                
+            case 15:
+                if (!follower.isBusy()) {
+                    follower.followPath(paths.ShootRack1);
+                    setState(16);
+                }
+                break;
+                
             case 16:
                 if (!follower.isBusy()) {
                     if (!isSettling) {
@@ -319,13 +316,14 @@ public class NewPlayoffAuto extends OpMode {
                         settleTimer.reset();
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
                         startOuttakeRoutine();
-                        setState(17); 
+                        setState(17);
                     }
                 }
                 break;
-                
+
+            // Park
             case 17:
-                follower.followPath(paths.Leave);
+                follower.followPath(paths.Park);
                 setState(18);
                 break;
                 
@@ -376,92 +374,75 @@ public class NewPlayoffAuto extends OpMode {
     }
 
     public static class Paths {
-        public PathChain PickupCorner;
-        public PathChain ShootCorner;
-        public PathChain PickupSpike;
-        public PathChain ShootSpike;
-        public PathChain PickupStray1;
-        public PathChain PickupStray2;
-        public PathChain PickupStray3;
-        public PathChain ShootStray;
-        public PathChain Leave;
+        public PathChain PresetShoot;
+        public PathChain PickupRack2;
+        public PathChain ShootRack2;
+        public PathChain GateIntake;
+        public PathChain ShootGateIntake;
+        public PathChain PickupRack1;
+        public PathChain ShootRack1;
+        public PathChain Park;
         
         public Paths(Follower follower) {
-            PickupCorner = follower.pathBuilder().addPath(
+            PresetShoot = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(39.000, 9.000),
-                    new Pose(9.000, 9.000)
+                    new Pose(121.396, 120.422),
+                    new Pose(85.000, 73.500)
                 )
-            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0)).build();
 
-            ShootCorner = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(9.000, 9.000),
-                    new Pose(58.000, 20.000)
-                )
-            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(110)).build();
-
-            PickupSpike = follower.pathBuilder().addPath(
+            PickupRack2 = follower.pathBuilder().addPath(
                 new BezierCurve(
-                    new Pose(58.000, 20.000),
-                    new Pose(29.000, 9.000),
-                    new Pose(22.500, 29.000)
+                    new Pose(85.000, 73.500),
+                    new Pose(91.328, 58.654),
+                    new Pose(123.713, 58.993)
                 )
-            ).setLinearHeadingInterpolation(Math.toRadians(110), Math.toRadians(90)).build();
+            ).setTangentHeadingInterpolation().build();
 
-            ShootSpike = follower.pathBuilder().addPath(
+            ShootRack2 = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(22.500, 29.000),
-                    new Pose(58.000, 20.000)
+                    new Pose(123.713, 58.993),
+                    new Pose(85.000, 73.500)
                 )
-            ).setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(140)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
 
-            PickupStray1 = follower.pathBuilder().addPath(
+            GateIntake = follower.pathBuilder().addPath(
                 new BezierCurve(
-                    new Pose(58.000, 20.000),
-                    new Pose(49.000, 11.000),
-                    new Pose(11.000, 11.000)
+                    new Pose(85.000, 73.500),
+                    new Pose(113.717, 47.984),
+                    new Pose(131.911, 58.700)
                 )
-            ).setLinearHeadingInterpolation(Math.toRadians(140), Math.toRadians(180)).build();
+            ).setTangentHeadingInterpolation().build();
 
-            PickupStray2 = follower.pathBuilder().addPath(
+            ShootGateIntake = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(11.000, 11.000),
-                    new Pose(15.000, 19.000)
+                    new Pose(131.911, 58.700),
+                    new Pose(85.000, 73.500)
                 )
-            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(120)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(29)).build();
 
-            PickupStray3 = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(15.000, 19.000),
-                    new Pose(13.000, 44.000)
+            PickupRack1 = follower.pathBuilder().addPath(
+                new BezierCurve(
+                    new Pose(85.000, 73.500),
+                    new Pose(98.720, 84.594),
+                    new Pose(126.857, 84.155)
                 )
-            ).setConstantHeadingInterpolation(Math.toRadians(120)).build();
+            ).setLinearHeadingInterpolation(Math.toRadians(29), Math.toRadians(0)).build();
 
-            ShootStray = follower.pathBuilder().addPath(
+            ShootRack1 = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(13.000, 44.000),
-                    new Pose(58.000, 20.000)
+                    new Pose(126.857, 84.155),
+                    new Pose(92.832, 83.469)
                 )
-            ).setLinearHeadingInterpolation(Math.toRadians(120), Math.toRadians(140)).build();
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0)).build();
 
-            Leave = follower.pathBuilder().addPath(
+            Park = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(58.000, 20.000),
-                    new Pose(46.000, 30.000)
+                    new Pose(92.832, 83.469),
+                    new Pose(92.793, 64.741)
                 )
-            ).setConstantHeadingInterpolation(Math.toRadians(140)).build();
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0)).build();
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
 
