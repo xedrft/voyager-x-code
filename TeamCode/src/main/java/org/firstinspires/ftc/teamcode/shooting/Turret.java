@@ -9,6 +9,8 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+
 public class Turret {
     private final DcMotorImplEx shooterMotor;
 
@@ -252,5 +254,11 @@ public class Turret {
 
     public void stop() {
         off();
+    }
+
+    public String getCurrentDraw() {
+        double current = shooterMotor.getCurrent(CurrentUnit.AMPS);
+        double transferCurrent = transferMotor.getCurrent(CurrentUnit.AMPS);
+        return String.format("%.2f A", current) + " / " + String.format("%.2f A", transferCurrent);
     }
 }

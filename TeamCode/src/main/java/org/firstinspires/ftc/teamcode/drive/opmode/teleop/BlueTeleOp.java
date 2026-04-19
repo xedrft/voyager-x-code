@@ -169,7 +169,7 @@ public class BlueTeleOp extends OpMode {
         // When locked, LockMode runs a tiny oscillation path to keep translational/heading PIDs engaged.
         // Otherwise, ensure we are in normal teleop drive.
         if (isLocked && gamepad1.left_trigger > 0.5) {
-            lockMode.lockPosition();
+            //lockMode.lockPosition();
         } else {
             lockMode.unlockPosition();
             follower.setTeleOpDrive(
@@ -242,6 +242,7 @@ public class BlueTeleOp extends OpMode {
         }
         lastPose = currentPose;
         lastPoseTimeSec = nowSec;
+        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 400 : 150;
 
         // Field Reset
         if (gamepad1.shareWasPressed()) {
@@ -290,7 +291,7 @@ public class BlueTeleOp extends OpMode {
             if (vel == null) {
                 turret.trackTarget(follower.getPose(), targetPose, offset_turret);
             } else {
-                double flightTime = 0.2; // .2 second constant as requested
+                double flightTime = 0.7; // .2 second constant as requested
                 double adjustX = vel.getXComponent() * flightTime;
                 double adjustY = vel.getYComponent() * flightTime;
                 Pose adjustedTarget = new Pose(targetPose.getX() - adjustX, targetPose.getY() - adjustY, targetPose.getHeading());
@@ -322,16 +323,15 @@ public class BlueTeleOp extends OpMode {
 //        velComp = Math.max(-MAX_RPM_VEL_COMP, Math.min(MAX_RPM_VEL_COMP, velComp));
 //        currentRPM += velComp;
 
-        if(currentPose.getY() < 30){
-            if (currentPose.getX() > 36 || currentPose.getX() < 108)
-                currentRPM = 17.1 * distance + 1650;
-            else
-                currentRPM = 4150;
+        if (currentPose.getY() < 25){
+            currentRPM = 17.1 * distance + 1650;
+
         }
 
-        currentRPM += shotCount * (250 + 0.3 * distance); // 0.3 for more aggressive
+        double rampUpFactor = (distance > 100) ? 0.5 * distance : 0.3 * distance;
+        currentRPM += shotCount * (250 + rampUpFactor);
         currentHood = turret.clamp(currentHood, 0, 1.0);
-        currentHood += shotCount * 0.05;
+        //currentHood += shotCount * 0.02;
 
 
 
@@ -394,16 +394,17 @@ public class BlueTeleOp extends OpMode {
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
 
         // Telemetry
-        telemetry.addData("Lock Mode Active", isLocked);
-        telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
-        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")");
-        telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
-        telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
-        telemetry.addData("Outtake In Progress", outtakeInProgress);
-        telemetry.addData("Color Scan In Progress", spindexer.isAccurateColorScanInProgress());
-        telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
-        char[] filled = spindexer.getFilled();
-        telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
+//        telemetry.addData("Lock Mode Active", isLocked);
+//        telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
+//        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")");
+//        telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
+//        telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
+//        telemetry.addData("Outtake In Progress", outtakeInProgress);
+//        telemetry.addData("Color Scan In Progress", spindexer.isAccurateColorScanInProgress());
+//        telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
+//        char[] filled = spindexer.getFilled();
+//        telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
+        telemetry.addData("PowerDraw: " , turret.getCurrentDraw());
         telemetry.update();
     }
 
@@ -437,7 +438,7 @@ public class BlueTeleOp extends OpMode {
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 3) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 2) {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();

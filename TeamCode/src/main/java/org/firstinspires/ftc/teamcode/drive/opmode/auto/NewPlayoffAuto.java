@@ -49,7 +49,7 @@ public class NewPlayoffAuto extends OpMode {
     private static final long SETTLE_DELAY_MS = 250;
     public static final int FIXED_RPM = 4000;
 
-    private int targetAngle = 282;
+    private int targetAngle = 287;
 
 
     private void setState(int s) {
@@ -140,8 +140,7 @@ public class NewPlayoffAuto extends OpMode {
 
         currentRPM += shotCount * (300);
         currentHood = turret.clamp(currentHood, 0.58, 1.0);
-        currentHood += shotCount * 0.05;
-        
+
         turret.setShooterRPM(currentRPM);
         turret.setHoodPosition(currentHood);
         turret.on();
@@ -220,7 +219,7 @@ public class NewPlayoffAuto extends OpMode {
                 break;
 
             case 4:
-                targetAngle = 322;
+                targetAngle = 327;
                 follower.followPath(paths.PickupSpike);
                 setState(5);
                 break;
