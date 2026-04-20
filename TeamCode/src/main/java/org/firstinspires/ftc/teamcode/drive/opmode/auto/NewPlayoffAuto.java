@@ -37,7 +37,7 @@ public class NewPlayoffAuto extends OpMode {
     private Turret turret;
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double OUTTAKE_DELAY_MS = 400;
+    public static double OUTTAKE_DELAY_MS = 350;
     Pose targetPose = new Pose(12, 132, 0); // Fixed Blue Target
     // -------------------- State machine --------------------
     private int pathState = 0;
@@ -47,9 +47,9 @@ public class NewPlayoffAuto extends OpMode {
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
     private static final long SETTLE_DELAY_MS = 250;
-    public static final int FIXED_RPM = 4000;
+    public static final int FIXED_RPM = 3850;
 
-    private int targetAngle = 287;
+    private int targetAngle = 286;
 
 
     private void setState(int s) {
@@ -111,7 +111,7 @@ public class NewPlayoffAuto extends OpMode {
 
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
-        targetAngle = 287;
+        targetAngle = 286;
     }
 
     @Override
@@ -170,6 +170,11 @@ public class NewPlayoffAuto extends OpMode {
             spitInit = false;
         }
 
+        // Force shoot index to 2 when approaching shoot position (X is around 58)
+        if (currentPose.getX() > 48 && !outtakeInProgress) {
+            spindexer.setShootIndex(2);
+        }
+
         autonomousUpdate();
         PoseStorage.currentPose = currentPose;
     }
@@ -182,14 +187,14 @@ public class NewPlayoffAuto extends OpMode {
 
         switch (pathState) {
             case 0: // Shoot presets immediately
-                if (stateTimer.milliseconds() > 4000) { // short delay for turret
+                if (stateTimer.milliseconds() > 3000) { // short delay for turret
                     startOuttakeRoutine();
                     setState(1);
                 }
                 break;
 
             case 1:
-                targetAngle = 2;
+                targetAngle = 7;
                 follower.followPath(paths.PickupCorner);
                 setState(2);
                 break;
@@ -219,7 +224,7 @@ public class NewPlayoffAuto extends OpMode {
                 break;
 
             case 4:
-                targetAngle = 327;
+                targetAngle = 336;
                 follower.followPath(paths.PickupSpike);
                 setState(5);
                 break;
@@ -422,7 +427,7 @@ public class NewPlayoffAuto extends OpMode {
                     new Pose(49.000, 11.000),
                     new Pose(11.000, 11.000)
                 )
-            ).setLinearHeadingInterpolation(Math.toRadians(140), Math.toRadians(180)).build();
+            ).setTangentHeadingInterpolation().build();
 
             PickupStray2 = follower.pathBuilder().addPath(
                 new BezierLine(
@@ -434,13 +439,13 @@ public class NewPlayoffAuto extends OpMode {
             PickupStray3 = follower.pathBuilder().addPath(
                 new BezierLine(
                     new Pose(15.000, 19.000),
-                    new Pose(13.000, 44.000)
+                    new Pose(13.000, 34.000)
                 )
             ).setConstantHeadingInterpolation(Math.toRadians(120)).build();
 
             ShootStray = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(13.000, 44.000),
+                    new Pose(13.000, 34.000),
                     new Pose(58.000, 20.000)
                 )
             ).setLinearHeadingInterpolation(Math.toRadians(120), Math.toRadians(140)).build();
@@ -454,6 +459,8 @@ public class NewPlayoffAuto extends OpMode {
         }
     }
 }
+
+
 
 
 

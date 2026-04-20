@@ -62,8 +62,8 @@ public class BlueTeleOp extends OpMode {
 
     private ElapsedTime spitTimer = new ElapsedTime();
     private boolean spitInit = false;
-    private boolean goingToPosition = false;
-    private static Pose GO_TO_TARGET = new Pose(18.53, 58.42, 2.67);
+//    private boolean goingToPosition = false;
+//    private static Pose GO_TO_TARGET = new Pose(18.53, 58.42, 2.67);
 
 
     private double currentRPM = 2500.0;
@@ -188,29 +188,29 @@ public class BlueTeleOp extends OpMode {
                 OFFSET
         );
         // --- go-to-position on A button ---
-        if (gamepad1.aWasPressed()) {
-            Pose cur = follower.getPose();
-            PathChain goToPath = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(cur.getX(), cur.getY(), cur.getHeading()),
-                            GO_TO_TARGET))
-                    .setLinearHeadingInterpolation(cur.getHeading(), GO_TO_TARGET.getHeading())
-                    .build();
-            follower.followPath(goToPath, 0.5, false);
-            goingToPosition = true;
-        }
-        if (goingToPosition) {
-            boolean stickMoved = Math.abs(gamepad1.left_stick_x) > 0.1 || Math.abs(gamepad1.left_stick_y) > 0.1;
-            if (!follower.isBusy() || stickMoved) {
-                goingToPosition = false;
-                follower.setMaxPower(1.0);
-                follower.startTeleopDrive();
-            }
-        }
+//        if (gamepad1.aWasPressed()) {
+//            Pose cur = follower.getPose();
+//            PathChain goToPath = follower.pathBuilder()
+//                    .addPath(new BezierLine(
+//                            new Pose(cur.getX(), cur.getY(), cur.getHeading()),
+//                            GO_TO_TARGET))
+//                    .setLinearHeadingInterpolation(cur.getHeading(), GO_TO_TARGET.getHeading())
+//                    .build();
+//            follower.followPath(goToPath, 0.5, false);
+//            goingToPosition = true;
+//        }
+//        if (goingToPosition) {
+//            boolean stickMoved = Math.abs(gamepad1.left_stick_x) > 0.1 || Math.abs(gamepad1.left_stick_y) > 0.1;
+//            if (!follower.isBusy() || stickMoved) {
+//                goingToPosition = false;
+//                follower.setMaxPower(1.0);
+//                follower.startTeleopDrive();
+//            }
+//        }
 
-        if (gamepad1.bWasPressed()) {
-            GO_TO_TARGET = follower.getPose();
-        }
+//        if (gamepad1.bWasPressed()) {
+//            GO_TO_TARGET = follower.getPose();
+//        }
 
         // --- estimate robot velocity (radial relative to target) ---
         Pose currentPose = follower.getPose();
@@ -248,11 +248,11 @@ public class BlueTeleOp extends OpMode {
         }
         lastPose = currentPose;
         lastPoseTimeSec = nowSec;
-        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 350 : 250;
+        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 350 : 225;
 
         // Field Reset
         if (gamepad1.shareWasPressed()) {
-            follower.setPose(new Pose(136.5, 7.75, Math.toRadians(180)));
+            follower.setPose(new Pose(135, 9, Math.toRadians(180)));
             turret = new Turret(hardwareMap, "shooter", "turret", "turretEncoder", "transferMotor", "hoodServo", true, false);
             // Ensure LockMode doesn't keep stale state across reset
             isLocked = false;

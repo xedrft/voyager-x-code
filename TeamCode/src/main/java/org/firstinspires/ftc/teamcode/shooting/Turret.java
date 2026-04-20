@@ -45,7 +45,6 @@ public class Turret {
 
     // Angle compensation tuning
     public static double DYNAMIC_OFFSET_MULTIPLIER = 0.05; // Scales how much the angle is adjusted
-    public static double DYNAMIC_OFFSET_BASE_ANGLE = 135.0; // The angle where no offset is applied (e.g. 45 deg relative to origin)
 
     private final ElapsedTime shooterPidTimer = new ElapsedTime();
     private boolean shooterPidInitialized = false;
@@ -147,9 +146,11 @@ public class Turret {
         
         double targetAngleDeg = Math.toDegrees(targetAngle);
         
+        double baseAngle = targetPose.getX() > 72 ? 45.0 : 135.0;
+
         // Calculate the dynamic offset based on how far we are from the base "no offset" corner angle.
         // For example, if we are at 72,0 and pointing steeper into Y, we offset slightly to aim away from the wall.
-        double dynamicOffsetDeg = DYNAMIC_OFFSET_MULTIPLIER * (targetAngleDeg - DYNAMIC_OFFSET_BASE_ANGLE);
+        double dynamicOffsetDeg = DYNAMIC_OFFSET_MULTIPLIER * (targetAngleDeg - baseAngle);
 
         targetAngle += Math.toRadians(offset + dynamicOffsetDeg);
 
