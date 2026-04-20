@@ -22,7 +22,7 @@ import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
 @Autonomous(name = "New Rack Auto", group = "Autonomous")
 @Configurable
-public class NewRackAuto extends OpMode {
+public class RedCloseRackAuto extends OpMode {
 
     // -------------------- Panels + Pedro --------------------
     private TelemetryManager panelsTelemetry;

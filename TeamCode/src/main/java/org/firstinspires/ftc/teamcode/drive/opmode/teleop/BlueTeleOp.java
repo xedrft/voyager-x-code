@@ -248,7 +248,7 @@ public class BlueTeleOp extends OpMode {
         }
         lastPose = currentPose;
         lastPoseTimeSec = nowSec;
-        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 400 : 150;
+        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 350 : 250;
 
         // Field Reset
         if (gamepad1.shareWasPressed()) {
