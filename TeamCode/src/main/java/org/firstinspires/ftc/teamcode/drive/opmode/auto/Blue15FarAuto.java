@@ -20,9 +20,9 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@Autonomous(name = "New Playoff Auto", group = "Autonomous")
+@Autonomous(name = "Blue 15 Ball Far Auto", group = "Autonomous")
 @Configurable
-public class NewPlayoffAuto extends OpMode {
+public class Blue15FarAuto extends OpMode {
 
     // -------------------- Panels + Pedro --------------------
     private TelemetryManager panelsTelemetry;
@@ -425,13 +425,13 @@ public class NewPlayoffAuto extends OpMode {
                 new BezierCurve(
                     new Pose(58.000, 20.000),
                     new Pose(49.000, 11.000),
-                    new Pose(11.000, 11.000)
+                    new Pose(9.000, 9.000)
                 )
             ).setTangentHeadingInterpolation().build();
 
             PickupStray2 = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(11.000, 11.000),
+                    new Pose(9.000, 9.000),
                     new Pose(15.000, 19.000)
                 )
             ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(120)).build();
