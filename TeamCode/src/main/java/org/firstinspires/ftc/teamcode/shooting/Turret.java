@@ -79,7 +79,7 @@ public class Turret {
     }
 
     public void setHoodPosition(double position) {
-        hoodServo.setPosition(clamp(position, 0.58, 1.0));
+        hoodServo.setPosition(clamp(position, 0.5, 1.0));
     }
 
     public double getHoodPosition() {

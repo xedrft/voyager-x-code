@@ -1,17 +1,11 @@
 package org.firstinspires.ftc.teamcode.drive.opmode.teleop;
 
-import com.bylazar.lights.Headlight;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.PathChain;
-import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.pedropathing.math.Vector;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotorImplEx;
-import com.qualcomm.robotcore.hardware.DigitalChannel;
-import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.drive.opmode.teleop.functions.LockMode;
@@ -20,16 +14,13 @@ import org.firstinspires.ftc.teamcode.intake.IntakeFlap;
 import org.firstinspires.ftc.teamcode.intake.IntakeServo;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.pedroPathing.PoseStorage;
-import org.firstinspires.ftc.teamcode.shooting.KickerServo;
 import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Lights;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-import com.pedropathing.math.Vector; // added for velocity compensation
-
 @TeleOp(name = "Blue TeleOp", group = "TeleOp")
-public class BlueTeleOp extends OpMode {
+public class regressionOpMode extends OpMode {
     private Follower follower;
     private LockMode lockMode;
     private boolean isLocked = false;
@@ -67,6 +58,10 @@ public class BlueTeleOp extends OpMode {
 
 
     private double currentRPM = 2500.0;
+    // baseRPM holds the shooter baseline (what the RPM should be outside of temporary ramp-up during shooting)
+    private double baseRPM = currentRPM;
+    // Snapshot the base RPM before applying temporary ramp-up so we can restore it when ramp completes
+    private double preRampBaseRPM = currentRPM;
     private double currentHood = 0.5;
     private int shotCount = 0;
     private int outtakeAdvanceCount = 0;
@@ -129,6 +124,9 @@ public class BlueTeleOp extends OpMode {
         // Initialize velocity estimator
         lastPose = follower.getPose();
         lastPoseTimeSec = getRuntime();
+
+        // Ensure baseRPM reflects initial currentRPM on init
+        baseRPM = currentRPM;
     }
 
     @Override
@@ -250,7 +248,6 @@ public class BlueTeleOp extends OpMode {
         lastPoseTimeSec = nowSec;
         OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 350 : 225;
 
-
         // Field Reset
         if (gamepad1.shareWasPressed()) {
             follower.setPose(new Pose(135, 9, Math.toRadians(180)));
@@ -319,11 +316,9 @@ public class BlueTeleOp extends OpMode {
                 + (targetPose.getY() - follower.getPose().getY())
                 * (targetPose.getY() - follower.getPose().getY()));
 
-        currentRPM = 12.98196 * distance + 2192.57653;
-        currentHood = (1.07947*Math.pow(10,-7))*Math.pow(distance, 4) - 0.0000376157*Math.pow(distance, 3) + 0.00473038*Math.pow(distance, 2) - 0.256541*distance + 5.77716;
-        if(distance > 130){
-            OUTTAKE_DELAY_MS = 435;
-        }
+        //currentRPM = 17.1 * distance + 1696.8783;
+        //currentHood = -0.008879 * distance + 1.4618;
+
 
         // Velocity compensation:
         // - if moving toward goal (radialVelocityIps negative) => decrease RPM
@@ -332,14 +327,23 @@ public class BlueTeleOp extends OpMode {
 //        velComp = Math.max(-MAX_RPM_VEL_COMP, Math.min(MAX_RPM_VEL_COMP, velComp));
 //        currentRPM += velComp;
 
-        if (currentPose.getY() < 25){
-            currentRPM = 17.1 * distance + 1650;
-            currentHood = 0.5;
+        // Manual RPM adjustments now change the baseRPM (the persistent baseline). Temporary ramp-up
+        // for shooting is applied each loop by adding shotCount * ramp term on top of baseRPM.
+        if (gamepad2.dpadUpWasPressed()){
+            baseRPM += 50;
+
+        }else if(gamepad2.dpadDownWasPressed()){
+            baseRPM -= 50;
         }
+        if (gamepad2.dpad_right) currentHood = Math.min(1.0, currentHood + 0.01);
+        if (gamepad2.dpad_left) currentHood = Math.max(0.0, currentHood - 0.01);
+        turret.setHoodPosition(currentHood);
 
         double rampUpFactor = (distance > 100) ? 0.5 * distance : 0.3 * distance;
-        currentRPM += shotCount * (250 + rampUpFactor);
-        currentHood = turret.clamp(currentHood, 0, 1.0);
+        // Compute currentRPM from baseRPM + temporary ramp from shotCount. This ensures that once shotCount
+        // is reset to 0 (after the ramp is done), currentRPM returns to the original baseRPM.
+        currentRPM = baseRPM + shotCount * (250 + rampUpFactor);
+        //currentHood = turret.clamp(currentHood, 0, 1.0);
         //currentHood += shotCount * 0.02;
 
 
@@ -350,11 +354,13 @@ public class BlueTeleOp extends OpMode {
         turret.setShooterRPM(currentRPM);
         turret.on(); // Update velocity
         //update hood
-        turret.setHoodPosition(currentHood);
+        //turret.setHoodPosition(currentHood);
 
 
         telemetry.addData("Calculated Distance (in)", distance);
-        telemetry.addData("Radial Vel (ips)", radialVelocityIps);
+        telemetry.addData("CurrentRPM: ", currentRPM);
+        telemetry.addData("BaseRPM: ", baseRPM);
+        telemetry.addData("CurrentHood: ", currentHood);
         //telemetry.addData("RPM Vel Comp", velComp);
 
         if (!colorScanInProgress && gamepad1.leftStickButtonWasPressed()) {
@@ -424,6 +430,8 @@ public class BlueTeleOp extends OpMode {
         outtakeTimer.reset();
         lastAdvanceTime = 0;
 
+        // Snapshot baseRPM before starting ramp so we can restore it later
+        preRampBaseRPM = baseRPM;
 
         // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
@@ -454,6 +462,8 @@ public class BlueTeleOp extends OpMode {
                 intakeFlap.on();
                 spinInterval = 0;
                 shotCount = 0;
+                // Restore the baseRPM that was active before the ramp
+                baseRPM = preRampBaseRPM;
                 spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;
                 isLocked = false;
@@ -462,6 +472,8 @@ public class BlueTeleOp extends OpMode {
     }
 
     private void startSingleOuttake(char color){
+        // Snapshot baseRPM before starting single-shot ramp
+        preRampBaseRPM = baseRPM;
         int index = -1;
         char[] filled = spindexer.getFilled();
         for (int i = 0; i < 3; i++){
@@ -491,6 +503,8 @@ public class BlueTeleOp extends OpMode {
                 spindexer.setColorAtPos('_', spindexer.getShootIndex());
                 singleOuttakeInProgress = false;
                 shotCount = 0;
+                // Restore base RPM after single-shot ramp completes
+                baseRPM = preRampBaseRPM;
                 if (spindexer.isEmpty()) {
                     barIntake.spinIntake();
                     spindexer.setIntakeIndex(0);
