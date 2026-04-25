@@ -319,10 +319,10 @@ public class BlueTeleOp extends OpMode {
                 + (targetPose.getY() - follower.getPose().getY())
                 * (targetPose.getY() - follower.getPose().getY()));
 
-        currentRPM = 12.98196 * distance + 2192.57653;
+        currentRPM = 12.98196 * distance + 2092.57653;
         currentHood = (1.07947*Math.pow(10,-7))*Math.pow(distance, 4) - 0.0000376157*Math.pow(distance, 3) + 0.00473038*Math.pow(distance, 2) - 0.256541*distance + 5.77716;
         if(distance > 130){
-            OUTTAKE_DELAY_MS = 435;
+            OUTTAKE_DELAY_MS = 400;
         }
 
         // Velocity compensation:
@@ -333,7 +333,7 @@ public class BlueTeleOp extends OpMode {
 //        currentRPM += velComp;
 
         if (currentPose.getY() < 25){
-            currentRPM = 17.1 * distance + 1650;
+            currentRPM = 17.1 * distance + 1700;
             currentHood = 0.5;
         }
 
