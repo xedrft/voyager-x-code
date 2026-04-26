@@ -57,7 +57,6 @@ public class RedTeleOp extends OpMode {
     boolean rpmCap = true;
     private boolean singleOuttakeInProgress = false;
     private boolean singleAtPosition = false;
-    private double startTime = 0;
     private static double OUTTAKE_DELAY_MS = 300;
 
     private ElapsedTime spitTimer = new ElapsedTime();
@@ -71,11 +70,9 @@ public class RedTeleOp extends OpMode {
     private int shotCount = 0;
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
-    private int spinInterval = 0;
 
     // --- velocity-based RPM compensation ---
     private Pose lastPose = null;
-    private boolean lastFull = false;
     private double lastPoseTimeSec = 0.0;
 
     /**
@@ -84,14 +81,9 @@ public class RedTeleOp extends OpMode {
      */
     private double radialVelocityIps = 0.0;
 
-    /** Tune: RPM change per (inch/sec) of radial velocity. */
-    private static final double RPM_PER_IPS = 20.0;
-
     /** Tune: ignore tiny velocity noise. */
     private static final double RADIAL_VEL_DEADBAND_IPS = 1.0;
 
-    /** Tune: clamp total velocity compensation so it can’t run away. */
-    private static final double MAX_RPM_VEL_COMP = 250.0;
     Lights lights;
 
 
@@ -187,30 +179,6 @@ public class RedTeleOp extends OpMode {
                 false,
                 OFFSET
         );
-        // --- go-to-position on A button ---
-//        if (gamepad1.aWasPressed()) {
-//            Pose cur = follower.getPose();
-//            PathChain goToPath = follower.pathBuilder()
-//                    .addPath(new BezierLine(
-//                            new Pose(cur.getX(), cur.getY(), cur.getHeading()),
-//                            GO_TO_TARGET))
-//                    .setLinearHeadingInterpolation(cur.getHeading(), GO_TO_TARGET.getHeading())
-//                    .build();
-//            follower.followPath(goToPath, 0.5, false);
-//            goingToPosition = true;
-//        }
-//        if (goingToPosition) {
-//            boolean stickMoved = Math.abs(gamepad1.left_stick_x) > 0.1 || Math.abs(gamepad1.left_stick_y) > 0.1;
-//            if (!follower.isBusy() || stickMoved) {
-//                goingToPosition = false;
-//                follower.setMaxPower(1.0);
-//                follower.startTeleopDrive();
-//            }
-//        }
-
-//        if (gamepad1.bWasPressed()) {
-//            GO_TO_TARGET = follower.getPose();
-//        }
 
         // --- estimate robot velocity (radial relative to target) ---
         Pose currentPose = follower.getPose();
@@ -248,7 +216,8 @@ public class RedTeleOp extends OpMode {
         }
         lastPose = currentPose;
         lastPoseTimeSec = nowSec;
-        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 350 : 225;
+        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 400 : 225;
+
 
         // Field Reset
         if (gamepad1.shareWasPressed()) {
@@ -270,6 +239,7 @@ public class RedTeleOp extends OpMode {
             }
         }
 
+
         // Spindex control
         if (!colorScanInProgress && gamepad1.rightBumperWasPressed()) {
             spindexer.advanceIntake();
@@ -284,7 +254,7 @@ public class RedTeleOp extends OpMode {
         }
 
 
-        // Outtake routine trigger
+        // Outtake routine trigger (manual left trigger)
         if (!colorScanInProgress && gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
             turret.on();
             startOuttakeRoutine();
@@ -297,7 +267,7 @@ public class RedTeleOp extends OpMode {
             if (vel == null) {
                 turret.trackTarget(follower.getPose(), targetPose, offset_turret);
             } else {
-                double flightTime = 0.7; // .2 second constant as requested
+                double flightTime = 0.6; // .2 second constant as requested
                 double adjustX = vel.getXComponent() * flightTime;
                 double adjustY = vel.getYComponent() * flightTime;
                 Pose adjustedTarget = new Pose(targetPose.getX() - adjustX, targetPose.getY() - adjustY, targetPose.getHeading());
@@ -318,8 +288,8 @@ public class RedTeleOp extends OpMode {
                 + (targetPose.getY() - follower.getPose().getY())
                 * (targetPose.getY() - follower.getPose().getY()));
 
-        currentRPM = 17.1 * distance + 1696.8783;
-        currentHood = -0.008879 * distance + 1.4618;
+        currentRPM = 12.98196 * distance + 2192.57653;
+        currentHood = (1.07947*Math.pow(10,-7))*Math.pow(distance, 4) - 0.0000376157*Math.pow(distance, 3) + 0.00473038*Math.pow(distance, 2) - 0.256541*distance + 5.77716;
 
 
         // Velocity compensation:
@@ -330,8 +300,8 @@ public class RedTeleOp extends OpMode {
 //        currentRPM += velComp;
 
         if (currentPose.getY() < 25){
-            currentRPM = 17.1 * distance + 1650;
-
+            currentRPM = 17.1 * distance + 1700;
+            currentHood = 0.5;
         }
 
         double rampUpFactor = (distance > 100) ? 0.5 * distance : 0.3 * distance;
@@ -444,12 +414,11 @@ public class RedTeleOp extends OpMode {
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 2) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 3) {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();
                 intakeFlap.on();
-                spinInterval = 0;
                 shotCount = 0;
                 spindexer.setIntakeIndex(0);
                 outtakeInProgress = false;

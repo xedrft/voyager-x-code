@@ -19,7 +19,7 @@ import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Lights;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@TeleOp(name = "Blue TeleOp", group = "TeleOp")
+@TeleOp(name = "Blue TeleOp no", group = "TeleOp")
 public class regressionOpMode extends OpMode {
     private Follower follower;
     private LockMode lockMode;

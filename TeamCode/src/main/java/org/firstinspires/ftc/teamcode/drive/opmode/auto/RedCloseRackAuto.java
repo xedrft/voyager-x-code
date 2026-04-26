@@ -38,11 +38,11 @@ public class RedCloseRackAuto extends OpMode {
     private Turret turret;
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double OUTTAKE_DELAY_MS = 225;
+    public static double OUTTAKE_DELAY_MS = 300;
 
     public static long PRESET_SETTLE_DELAY_MS = 0;
     public static long SETTLE_DELAY_MS = 0;
-    public static long GATE_WAIT_MS = 80; // Optional hold delay during gate intake
+    public static long GATE_WAIT_MS = 750; // Optional hold delay during gate intake
 
     Pose targetPose = new Pose(132, 132, 0); // Fixed Blue Target
     // -------------------- State machine --------------------
@@ -147,7 +147,7 @@ public class RedCloseRackAuto extends OpMode {
 
         double distance = Math.hypot(targetPose.getX() - currentPose.getX(), targetPose.getY() - currentPose.getY());
 
-        double currentRPM = 12.98196 * distance + 2192.57653;
+        double currentRPM = 12.98196 * distance + 2152.57653;
         double currentHood = (1.07947*Math.pow(10,-7))*Math.pow(distance, 4) - 0.0000376157*Math.pow(distance, 3) + 0.00473038*Math.pow(distance, 2) - 0.256541*distance + 5.77716;
 
         double rampUpFactor = (distance > 100) ? 0.5 * distance : 0.3 * distance;
@@ -180,33 +180,6 @@ public class RedCloseRackAuto extends OpMode {
         turret.on();
 
         spindexer.update();
-
-        // Spit out logic from BlueTeleOp
-        if (spindexer.isFull() && !outtakeInProgress) {
-            if (!spitInit) {
-                spitTimer.reset();
-                spitInit = true;
-            }
-            spindexer.goToOuttakePosition();
-            double spitElapsed = spitTimer.milliseconds();
-            if (spitElapsed > 150 && spitElapsed < 250) {
-                barIntake.spinOuttake();
-            } else if (spitElapsed >= 250) {
-                spindexer.setShootIndex(2);
-                barIntake.stop();
-            } else {
-                barIntake.stop();
-            }
-        } else {
-            if (spitInit) {
-                barIntake.spinIntake();
-            }
-            spitInit = false;
-        }
-
-//        if (currentPose.getX() < 108 && !outtakeInProgress) {
-//            spindexer.setShootIndex(2);
-//        }
 
         autonomousUpdate();
         PoseStorage.currentPose = currentPose;
@@ -262,7 +235,7 @@ public class RedCloseRackAuto extends OpMode {
 
             // GateIntake 1
             case 5:
-                follower.followPath(paths.GateIntake);
+                follower.followPath(paths.GateIntake, 0.8, true);
                 setState(6);
                 break;
                 
@@ -292,7 +265,7 @@ public class RedCloseRackAuto extends OpMode {
                 
             // GateIntake 2
             case 8:
-                follower.followPath(paths.GateIntake);
+                follower.followPath(paths.GateIntake, 0.8, true);
                 setState(9);
                 break;
                 
@@ -322,7 +295,7 @@ public class RedCloseRackAuto extends OpMode {
 
             // GateIntake 3
             case 11:
-                follower.followPath(paths.GateIntake);
+                follower.followPath(paths.GateIntake, 0.8, true);
                 setState(12);
                 break;
                 
@@ -374,14 +347,8 @@ public class RedCloseRackAuto extends OpMode {
                     }
                 }
                 break;
-
-            // Park
-            case 17:
-                follower.followPath(paths.Park);
-                setState(18);
-                break;
                 
-            case 18:
+            case 17:
                 // done
                 break;
         }
@@ -394,7 +361,6 @@ public class RedCloseRackAuto extends OpMode {
         outtakeTimer.reset();
         lastAdvanceTime = 0;
 
-
         // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
 
@@ -402,20 +368,25 @@ public class RedCloseRackAuto extends OpMode {
         lastAdvanceTime = outtakeTimer.milliseconds();
     }
 
-
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
         // Check if it's time for the next advanceIntake call
-        if (outtakeAdvanceCount < 2) {
+        if (outtakeAdvanceCount < 3) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 1.5 : OUTTAKE_DELAY_MS)) {
-                shotCount++;
+
+                // Only increase shotCount if there's actually a ball in the current shoot index
+                char[] filled = spindexer.getFilled();
+                if (filled[spindexer.getShootIndex()] != '_') {
+                    shotCount++;
+                }
+
                 spindexer.retreatShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 2) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();
@@ -438,8 +409,8 @@ public class RedCloseRackAuto extends OpMode {
         public PathChain Park;
         
         public static Pose shootPose = new Pose(86.000, 74.500);
-        public static Pose gateIntakePose = new Pose(134.911, 59.700);
-        public static double gateIntakeAngle = Math.toRadians(29);
+        public static Pose gateIntakePose = new Pose(134.911, 62.700);
+        public static double gateIntakeAngle = Math.toRadians(31);
 
         public Paths(Follower follower) {
             PresetShoot = follower.pathBuilder().addPath(
@@ -453,13 +424,13 @@ public class RedCloseRackAuto extends OpMode {
                 new BezierCurve(
                     shootPose,
                     new Pose(91.328, 58.654),
-                    new Pose(123.713, 58.993)
+                    new Pose(126.713, 58.993)
                 )
             ).setTangentHeadingInterpolation().build();
 
             ShootRack2 = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(123.713, 58.993),
+                    new Pose(126.713, 58.993),
                     shootPose
                 )
             ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
@@ -490,16 +461,10 @@ public class RedCloseRackAuto extends OpMode {
             ShootRack1 = follower.pathBuilder().addPath(
                 new BezierLine(
                     new Pose(126.857, 84.155),
-                    new Pose(92.832, 83.469)
+                    new Pose(90, 112)
                 )
             ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0)).build();
 
-            Park = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(92.832, 83.469),
-                    new Pose(92.793, 64.741)
-                )
-            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0)).build();
         }
     }
 }

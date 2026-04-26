@@ -490,6 +490,7 @@ public class Spindexer {
             }
         }
 
+        colorScanState = ColorScanState.IDLE;
         return false;
     }
 

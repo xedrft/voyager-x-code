@@ -44,7 +44,9 @@ public class Turret {
     public static double SHOOTER_INTEGRAL_MAX = 2500.0;
 
     // Angle compensation tuning
-    public static double DYNAMIC_OFFSET_MULTIPLIER = 0.05; // Scales how much the angle is adjusted
+    public static double DYNAMIC_OFFSET_MULTIPLIER = 0.03; // Scales how much the angle is adjusted
+
+    private double currAngle;
 
     private final ElapsedTime shooterPidTimer = new ElapsedTime();
     private boolean shooterPidInitialized = false;
@@ -157,8 +159,12 @@ public class Turret {
         double robotHeading = robotPose.getHeading();
         double desiredRelativeAngle = Math.toDegrees(targetAngle - robotHeading);
         desiredRelativeAngle = normalizeAngle(desiredRelativeAngle);
-
+        currAngle = desiredRelativeAngle;
         goToPosition(desiredRelativeAngle);
+    }
+
+    public double getAngle() {
+        return currAngle;
     }
 
     public void goToPosition(double targetAngleDegrees) {
@@ -262,4 +268,6 @@ public class Turret {
         double transferCurrent = transferMotor.getCurrent(CurrentUnit.AMPS);
         return String.format("%.2f A", current) + " / " + String.format("%.2f A", transferCurrent);
     }
+
+
 }

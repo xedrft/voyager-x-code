@@ -132,9 +132,7 @@ public class RedFarPlayoff extends OpMode {
 
         // Subsystem updates
         turret.trackTarget(follower.getPose(), targetPose, 0);
-        double distance = Math.hypot(targetPose.getX() - currentPose.getX(), targetPose.getY() - currentPose.getY());
-        currentRPM = 17.1 * distance + 1700;
-        turret.setShooterRPM(currentRPM);
+        turret.setShooterRPM(FIXED_RPM);
         turret.setHoodPosition(0.58);
         turret.on();
 

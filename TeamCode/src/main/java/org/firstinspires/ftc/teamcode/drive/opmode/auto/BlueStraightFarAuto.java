@@ -20,9 +20,9 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@Autonomous(name = "Blue 18 Ball Far Auto", group = "Autonomous")
+@Autonomous(name = "Blue 18 Ball Auto (Straight)", group = "Autonomous")
 @Configurable
-public class Blue18FarAuto extends OpMode {
+public class BlueStraightFarAuto extends OpMode {
 
     // -------------------- Panels + Pedro --------------------
     private TelemetryManager panelsTelemetry;
@@ -271,19 +271,19 @@ public class Blue18FarAuto extends OpMode {
                         settleTimer.reset();
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
                         startOuttakeRoutine();
-                        setState(10); // Repeat PickupStray 1
+                        setState(10); // Start Stray 2 (first time)
                     }
                 }
                 break;
 
             case 10:
-                follower.followPath(paths.PickupStray);
+                follower.followPath(paths.PickupStray2);
                 setState(11);
                 break;
 
             case 11:
                 if(!follower.isBusy()) {
-                    follower.followPath(paths.ShootStray);
+                    follower.followPath(paths.ShootStray2);
                     setState(12);
                 }
                 break;
@@ -295,7 +295,7 @@ public class Blue18FarAuto extends OpMode {
                         settleTimer.reset();
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
                         startOuttakeRoutine();
-                        setState(13); // Start Stray 2
+                        setState(13); // Start Stray 2 (second time)
                     }
                 }
                 break;
@@ -319,41 +319,17 @@ public class Blue18FarAuto extends OpMode {
                         settleTimer.reset();
                     } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
                         startOuttakeRoutine();
-                        setState(16); // Repeat Stray 2
+                        setState(16); // Leave
                     }
                 }
                 break;
 
             case 16:
-                follower.followPath(paths.PickupStray2);
+                follower.followPath(paths.Leave);
                 setState(17);
                 break;
 
             case 17:
-                if(!follower.isBusy()) {
-                    follower.followPath(paths.ShootStray2);
-                    setState(18);
-                }
-                break;
-
-            case 18:
-                if (!follower.isBusy()) {
-                    if (!isSettling) {
-                        isSettling = true;
-                        settleTimer.reset();
-                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
-                        startOuttakeRoutine();
-                        setState(19);
-                    }
-                }
-                break;
-
-            case 19:
-                follower.followPath(paths.Leave);
-                setState(20);
-                break;
-
-            case 20:
                 // done
                 break;
         }
@@ -404,72 +380,72 @@ public class Blue18FarAuto extends OpMode {
         public PathChain PickupStray2;
         public PathChain ShootStray2;
         public PathChain Leave;
-        
+
         public Paths(Follower follower) {
             PickupCorner = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(39.000, 9.000),
-                    new Pose(9.000, 9.000)
-                )
+                    new BezierLine(
+                            new Pose(39.000, 9.000),
+                            new Pose(9.000, 9.000)
+                    )
             ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             ShootCorner = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(9.000, 9.000),
-                    new Pose(58.000, 20.000)
-                )
+                    new BezierLine(
+                            new Pose(9.000, 9.000),
+                            new Pose(58.000, 20.000)
+                    )
             ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(110)).build();
 
             PickupSpike = follower.pathBuilder().addPath(
-                new BezierCurve(
-                    new Pose(58.000, 20.000),
-                    new Pose(29.000, 9.000),
-                    new Pose(22.500, 29.000)
-                )
+                    new BezierCurve(
+                            new Pose(58.000, 20.000),
+                            new Pose(29.000, 9.000),
+                            new Pose(22.500, 29.000)
+                    )
             ).setLinearHeadingInterpolation(Math.toRadians(110), Math.toRadians(90)).build();
 
             ShootSpike = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(22.500, 29.000),
-                    new Pose(58.000, 20.000)
-                )
+                    new BezierLine(
+                            new Pose(22.500, 29.000),
+                            new Pose(58.000, 20.000)
+                    )
             ).setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(140)).build();
 
             PickupStray = follower.pathBuilder().addPath(
-                new BezierCurve(
-                    new Pose(58.000, 20.000),
-                    new Pose(49.000, 11.000),
-                    new Pose(9.000, 9.000)
-                )
+                    new BezierCurve(
+                            new Pose(58.000, 20.000),
+                            new Pose(49.000, 11.000),
+                            new Pose(9.000, 9.000)
+                    )
             ).setTangentHeadingInterpolation().build();
 
             ShootStray = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(9.000, 9.000),
-                    new Pose(58.000, 20.000)
-                )
-            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(140)).build();
+                    new BezierLine(
+                            new Pose(9.000, 9.000),
+                            new Pose(39.000, 9.000)
+                    )
+            ).setTangentHeadingInterpolation().setReversed().build();
 
             PickupStray2 = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(58.000, 20.000),
-                    new Pose(9.000, 20.000)
-                )
+                    new BezierLine(
+                            new Pose(39.000, 9.000),
+                            new Pose(9.000, 9.000)
+                    )
             ).setTangentHeadingInterpolation().build();
 
             ShootStray2 = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(9.000, 20.000),
-                    new Pose(58.000, 20.000)
-                )
-            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(140)).build();
+                    new BezierLine(
+                            new Pose(9.000, 9.000),
+                            new Pose(39.000, 9.000)
+                    )
+            ).setTangentHeadingInterpolation().setReversed().build();
 
             Leave = follower.pathBuilder().addPath(
-                new BezierLine(
-                    new Pose(58.000, 20.000),
-                    new Pose(46.000, 30.000)
-                )
-            ).setConstantHeadingInterpolation(Math.toRadians(140)).build();
+                    new BezierLine(
+                            new Pose(39.000, 9.000),
+                            new Pose(25.000, 9.000)
+                    )
+            ).setTangentHeadingInterpolation().build();
         }
     }
 }
