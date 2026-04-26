@@ -248,7 +248,7 @@ public class BlueTeleOp extends OpMode {
         }
         lastPose = currentPose;
         lastPoseTimeSec = nowSec;
-        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 350 : 225;
+        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 400 : 225;
 
 
         // Field Reset
@@ -298,7 +298,7 @@ public class BlueTeleOp extends OpMode {
             if (vel == null) {
                 turret.trackTarget(follower.getPose(), targetPose, offset_turret);
             } else {
-                double flightTime = 0.7; // .2 second constant as requested
+                double flightTime = 0.6; // .2 second constant as requested
                 double adjustX = vel.getXComponent() * flightTime;
                 double adjustY = vel.getYComponent() * flightTime;
                 Pose adjustedTarget = new Pose(targetPose.getX() - adjustX, targetPose.getY() - adjustY, targetPose.getHeading());
@@ -321,9 +321,7 @@ public class BlueTeleOp extends OpMode {
 
         currentRPM = 12.98196 * distance + 2192.57653;
         currentHood = (1.07947*Math.pow(10,-7))*Math.pow(distance, 4) - 0.0000376157*Math.pow(distance, 3) + 0.00473038*Math.pow(distance, 2) - 0.256541*distance + 5.77716;
-        if(distance > 130){
-            OUTTAKE_DELAY_MS = 435;
-        }
+
 
         // Velocity compensation:
         // - if moving toward goal (radialVelocityIps negative) => decrease RPM
@@ -333,7 +331,7 @@ public class BlueTeleOp extends OpMode {
 //        currentRPM += velComp;
 
         if (currentPose.getY() < 25){
-            currentRPM = 17.1 * distance + 1650;
+            currentRPM = 17.1 * distance + 1700;
             currentHood = 0.5;
         }
 

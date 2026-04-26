@@ -37,8 +37,13 @@ public class RedCloseRackAuto extends OpMode {
     private Turret turret;
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double OUTTAKE_DELAY_MS = 400;
-    Pose targetPose = new Pose(12, 132, 0); // Fixed Blue Target
+    public static double OUTTAKE_DELAY_MS = 300;
+
+    public static long PRESET_SETTLE_DELAY_MS = 500;
+    public static long SETTLE_DELAY_MS = 250;
+    public static long GATE_WAIT_MS = 1000; // Optional hold delay during gate intake
+
+    Pose targetPose = new Pose(132, 132, 0); // Fixed Blue Target
     // -------------------- State machine --------------------
     private int pathState = 0;
     private int lastState = -1;
@@ -46,11 +51,6 @@ public class RedCloseRackAuto extends OpMode {
 
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
-    private static final long SETTLE_DELAY_MS = 250;
-    public static final int FIXED_RPM = 2700;
-
-    private int targetAngle = 40;
-
 
     private void setState(int s) {
         if (s != lastState) {
@@ -74,13 +74,12 @@ public class RedCloseRackAuto extends OpMode {
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
 
-
     @Override
     public void init() {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(120, 120, Math.toRadians(0)));
+        follower.setStartingPose(new Pose(121.396, 120.422, Math.toRadians(0)));
 
         // Subsystems
         barIntake = new BarIntake(hardwareMap, "barIntake", false);
@@ -111,7 +110,6 @@ public class RedCloseRackAuto extends OpMode {
 
         panelsTelemetry.debug("Status", "Initialized");
         panelsTelemetry.update(telemetry);
-        targetAngle = 50; // Adjust if necessary
     }
 
     @Override
@@ -132,14 +130,17 @@ public class RedCloseRackAuto extends OpMode {
         follower.update();
         Pose currentPose = follower.getPose();
 
+        turret.trackTarget(currentPose, targetPose, 0);
 
-        turret.goToPosition(targetAngle);
+        double distance = Math.hypot(targetPose.getX() - currentPose.getX(), targetPose.getY() - currentPose.getY());
 
-        double currentRPM = FIXED_RPM;
-        double currentHood = 0.58;
+        double currentRPM = 12.98196 * distance + 2192.57653;
+        double currentHood = (1.07947*Math.pow(10,-7))*Math.pow(distance, 4) - 0.0000376157*Math.pow(distance, 3) + 0.00473038*Math.pow(distance, 2) - 0.256541*distance + 5.77716;
 
-        currentRPM += shotCount * (300);
-        
+        double rampUpFactor = (distance > 100) ? 0.5 * distance : 0.3 * distance;
+        currentRPM += shotCount * (250 + rampUpFactor);
+        currentHood = turret.clamp(currentHood, 0, 1.0);
+
         turret.setShooterRPM(currentRPM);
         turret.setHoodPosition(currentHood);
         turret.on();
@@ -169,6 +170,10 @@ public class RedCloseRackAuto extends OpMode {
             spitInit = false;
         }
 
+        if (currentPose.getX() < 124 && !outtakeInProgress) {
+            spindexer.setShootIndex(2);
+        }
+
         autonomousUpdate();
         PoseStorage.currentPose = currentPose;
     }
@@ -190,7 +195,7 @@ public class RedCloseRackAuto extends OpMode {
                     if (!isSettling) {
                         isSettling = true;
                         settleTimer.reset();
-                    } else if (settleTimer.milliseconds() > SETTLE_DELAY_MS) {
+                    } else if (settleTimer.milliseconds() > PRESET_SETTLE_DELAY_MS) {
                         startOuttakeRoutine();
                         setState(2);
                     }
@@ -229,8 +234,13 @@ public class RedCloseRackAuto extends OpMode {
                 
             case 6:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.ShootGateIntake);
-                    setState(7);
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > GATE_WAIT_MS) {
+                        follower.followPath(paths.ShootGateIntake);
+                        setState(7);
+                    }
                 }
                 break;
                 
@@ -254,8 +264,13 @@ public class RedCloseRackAuto extends OpMode {
                 
             case 9:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.ShootGateIntake);
-                    setState(10);
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > GATE_WAIT_MS) {
+                        follower.followPath(paths.ShootGateIntake);
+                        setState(10);
+                    }
                 }
                 break;
                 
@@ -279,8 +294,13 @@ public class RedCloseRackAuto extends OpMode {
                 
             case 12:
                 if (!follower.isBusy()) {
-                    follower.followPath(paths.ShootGateIntake);
-                    setState(13);
+                    if (!isSettling) {
+                        isSettling = true;
+                        settleTimer.reset();
+                    } else if (settleTimer.milliseconds() > GATE_WAIT_MS) {
+                        follower.followPath(paths.ShootGateIntake);
+                        setState(13);
+                    }
                 }
                 break;
                 
@@ -383,8 +403,8 @@ public class RedCloseRackAuto extends OpMode {
         public PathChain ShootRack1;
         public PathChain Park;
         
-        public static Pose shootPose = new Pose(85.000, 73.500);
-        public static Pose gateIntakePose = new Pose(131.911, 58.700);
+        public static Pose shootPose = new Pose(86.000, 74.500);
+        public static Pose gateIntakePose = new Pose(133.911, 60.700);
         public static double gateIntakeAngle = Math.toRadians(29);
 
         public Paths(Follower follower) {
@@ -423,7 +443,7 @@ public class RedCloseRackAuto extends OpMode {
                     gateIntakePose,
                     shootPose
                 )
-            ).setConstantHeadingInterpolation(gateIntakeAngle).build();
+            ).setTangentHeadingInterpolation().setReversed().build();
 
             PickupRack1 = follower.pathBuilder().addPath(
                 new BezierCurve(

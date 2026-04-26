@@ -37,7 +37,7 @@ public class Blue18FarAuto extends OpMode {
     private Turret turret;
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double OUTTAKE_DELAY_MS = 350;
+    public static double OUTTAKE_DELAY_MS = 400;
     Pose targetPose = new Pose(12, 132, 0); // Fixed Blue Target
     // -------------------- State machine --------------------
     private int pathState = 0;
