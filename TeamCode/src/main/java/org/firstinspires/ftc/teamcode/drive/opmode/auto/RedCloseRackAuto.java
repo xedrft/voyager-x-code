@@ -7,6 +7,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Vector;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -37,11 +38,11 @@ public class RedCloseRackAuto extends OpMode {
     private Turret turret;
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double OUTTAKE_DELAY_MS = 300;
+    public static double OUTTAKE_DELAY_MS = 225;
 
-    public static long PRESET_SETTLE_DELAY_MS = 500;
-    public static long SETTLE_DELAY_MS = 250;
-    public static long GATE_WAIT_MS = 1000; // Optional hold delay during gate intake
+    public static long PRESET_SETTLE_DELAY_MS = 0;
+    public static long SETTLE_DELAY_MS = 0;
+    public static long GATE_WAIT_MS = 80; // Optional hold delay during gate intake
 
     Pose targetPose = new Pose(132, 132, 0); // Fixed Blue Target
     // -------------------- State machine --------------------
@@ -130,7 +131,19 @@ public class RedCloseRackAuto extends OpMode {
         follower.update();
         Pose currentPose = follower.getPose();
 
-        turret.trackTarget(currentPose, targetPose, 0);
+        Vector vel = follower.getVelocity();
+        if (vel == null) {
+            turret.trackTarget(follower.getPose(), targetPose, 0);
+        } else {
+            double flightTime = 0.6; // .2 second constant as requested
+            double adjustX = vel.getXComponent() * flightTime;
+            double adjustY = vel.getYComponent() * flightTime;
+            Pose adjustedTarget = new Pose(targetPose.getX() - adjustX, targetPose.getY() - adjustY, targetPose.getHeading());
+            turret.trackTarget(follower.getPose(), adjustedTarget, 0);
+            telemetry.addData("CompAdjustX", adjustX);
+            telemetry.addData("CompAdjustY", adjustY);
+            telemetry.addData("AdjustedTarget", "(" + adjustedTarget.getX() + ", " + adjustedTarget.getY() + ")");
+        }
 
         double distance = Math.hypot(targetPose.getX() - currentPose.getX(), targetPose.getY() - currentPose.getY());
 
@@ -140,6 +153,27 @@ public class RedCloseRackAuto extends OpMode {
         double rampUpFactor = (distance > 100) ? 0.5 * distance : 0.3 * distance;
         currentRPM += shotCount * (250 + rampUpFactor);
         currentHood = turret.clamp(currentHood, 0, 1.0);
+
+        if (spindexer.isFull() && !outtakeInProgress) {
+            if (!spitInit) {
+                spitTimer.reset();
+                spitInit = true;
+            }
+            spindexer.goToOuttakePosition();
+            double spitElapsed = spitTimer.milliseconds();
+            if (spitElapsed > 125 && spitElapsed < 225) {
+                barIntake.spinOuttake();
+            }
+            else if (spitElapsed >= 225) {
+                spindexer.setShootIndex(2);
+                barIntake.stop();
+            }
+            else {
+                barIntake.stop();
+            }
+        } else {
+            spitInit = false;
+        }
 
         turret.setShooterRPM(currentRPM);
         turret.setHoodPosition(currentHood);
@@ -170,9 +204,9 @@ public class RedCloseRackAuto extends OpMode {
             spitInit = false;
         }
 
-        if (currentPose.getX() < 124 && !outtakeInProgress) {
-            spindexer.setShootIndex(2);
-        }
+//        if (currentPose.getX() < 108 && !outtakeInProgress) {
+//            spindexer.setShootIndex(2);
+//        }
 
         autonomousUpdate();
         PoseStorage.currentPose = currentPose;
@@ -404,13 +438,13 @@ public class RedCloseRackAuto extends OpMode {
         public PathChain Park;
         
         public static Pose shootPose = new Pose(86.000, 74.500);
-        public static Pose gateIntakePose = new Pose(133.911, 60.700);
+        public static Pose gateIntakePose = new Pose(134.911, 59.700);
         public static double gateIntakeAngle = Math.toRadians(29);
 
         public Paths(Follower follower) {
             PresetShoot = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(121.396, 120.422),
+                    new Pose(123.396, 122.422),
                     shootPose
                 )
             ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0)).build();

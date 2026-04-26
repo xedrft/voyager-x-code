@@ -54,6 +54,17 @@ public class BlueTeleOp extends OpMode {
     // Outtake routine state
     private boolean outtakeInProgress = false;
 
+    // New: auto-shoot toggle (ON by default)
+    private boolean autoShootEnabled = true;
+
+    // New: turret clamp tolerance (degrees)
+    private static final double TURRET_CLAMP_TOL = 2.0;
+
+    // New: auto-shoot delay timer and flag (1 second default)
+    private ElapsedTime autoShootDelayTimer = new ElapsedTime();
+    private boolean autoShootDelayActive = false;
+    private static final double AUTO_SHOOT_DELAY_MS = 750.0;
+
     boolean rpmCap = true;
     private boolean singleOuttakeInProgress = false;
     private boolean singleAtPosition = false;
@@ -129,6 +140,10 @@ public class BlueTeleOp extends OpMode {
         // Initialize velocity estimator
         lastPose = follower.getPose();
         lastPoseTimeSec = getRuntime();
+
+        // ensure timer is reset at start
+        autoShootDelayTimer.reset();
+        autoShootDelayActive = false;
     }
 
     @Override
@@ -271,6 +286,12 @@ public class BlueTeleOp extends OpMode {
             }
         }
 
+        // Toggle auto-shoot feature with gamepad2 left bumper
+        if (gamepad1.rightBumperWasPressed()) {
+            autoShootEnabled = !autoShootEnabled;
+            gamepad2.rumble(100);
+        }
+
         // Spindex control
         if (!colorScanInProgress && gamepad1.rightBumperWasPressed()) {
             spindexer.advanceIntake();
@@ -285,10 +306,40 @@ public class BlueTeleOp extends OpMode {
         }
 
 
-        // Outtake routine trigger
+        // Outtake routine trigger (manual left trigger)
         if (!colorScanInProgress && gamepad1.left_trigger > 0.5 && !outtakeInProgress) {
             turret.on();
             startOuttakeRoutine();
+        }
+
+        // Auto-shoot preconditions
+        boolean autoConditionsMet = !colorScanInProgress
+                && spindexer.isFull()
+                && !outtakeInProgress
+                && !singleOuttakeInProgress
+                && autoShootEnabled
+                && !isTurretAtClamp()                  // turret must be within allowed/clamp region
+                && isInShootZone(follower.getPose());
+
+        // Delayed auto-shoot: require conditions to hold for AUTO_SHOOT_DELAY_MS before firing.
+        if (autoConditionsMet) {
+            if (!autoShootDelayActive) {
+                // Start the delay timer on first detection
+                autoShootDelayActive = true;
+                autoShootDelayTimer.reset();
+            } else {
+                // Already pending, check elapsed
+                if (autoShootDelayTimer.milliseconds() >= AUTO_SHOOT_DELAY_MS) {
+                    // Trigger auto-shoot (same actions as manual trigger)
+                    turret.on();
+                    startOuttakeRoutine();
+                    autoShootDelayActive = false; // reset pending state
+                }
+            }
+        } else {
+            // If conditions break while pending, cancel
+            autoShootDelayActive = false;
+            // note: do not reset timer explicitly here; reset will happen when we next enter pending
         }
 
 //         Turret tracking: use velocity compensation when shooting while moving
@@ -412,6 +463,7 @@ public class BlueTeleOp extends OpMode {
 //        char[] filled = spindexer.getFilled();
 //        telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
         telemetry.addData("PowerDraw: " , turret.getCurrentDraw());
+        telemetry.addData("AutoShoot Enabled", autoShootEnabled); // show current toggle state
         telemetry.update();
     }
 
@@ -495,5 +547,47 @@ public class BlueTeleOp extends OpMode {
                 }
             }
         }
+    }
+
+    // New helper: checks whether a pose lies inside the triangle with vertices
+    // A=(0,144), B=(144,144), C=(72,72). Uses barycentric coordinates.
+    private boolean isInShootZone(Pose p) {
+        if (p == null) return false;
+        double px = p.getX();
+        double py = p.getY();
+
+        // Triangle vertices
+        double ax = 0.0, ay = 135.0;
+        double bx = 144.0, by = 135.0;
+        double cx = 72.0, cy = 63.0;
+
+        // Compute vectors
+        double v0x = cx - ax, v0y = cy - ay;
+        double v1x = bx - ax, v1y = by - ay;
+        double v2x = px - ax, v2y = py - ay;
+
+        // Compute dot products
+        double dot00 = v0x * v0x + v0y * v0y;
+        double dot01 = v0x * v1x + v0y * v1y;
+        double dot02 = v0x * v2x + v0y * v2y;
+        double dot11 = v1x * v1x + v1y * v1y;
+        double dot12 = v1x * v2x + v1y * v2y;
+
+        // Compute barycentric coordinates
+        double denom = dot00 * dot11 - dot01 * dot01;
+        if (Math.abs(denom) < 1e-9) return false; // degenerate triangle guard
+        double invDenom = 1.0 / denom;
+        double u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+        double v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+        // Inside triangle if u >= 0, v >= 0 and u+v <= 1
+        return u >= 0.0 && v >= 0.0 && (u + v) <= 1.0;
+    }
+
+    // New helper: return true if turret is at either clamp extreme (outside allowed 45..315 deg)
+    private boolean isTurretAtClamp() {
+        double angle = turret.getEncoderAngle(); // 0..360
+        // Allowed region is 45..315; if angle is in the forbidden wrap (0..45] or [315..360) treat as clamp
+        return angle <= (45.0 + TURRET_CLAMP_TOL) || angle >= (315.0 - TURRET_CLAMP_TOL);
     }
 }
