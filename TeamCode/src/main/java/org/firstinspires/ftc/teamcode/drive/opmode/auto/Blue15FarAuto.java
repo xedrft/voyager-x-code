@@ -37,7 +37,7 @@ public class Blue15FarAuto extends OpMode {
     private Turret turret;
 
     // -------------------- Config (tune in Panels) --------------------
-    public static double OUTTAKE_DELAY_MS = 400;
+    public static double OUTTAKE_DELAY_MS = 350;
     Pose targetPose = new Pose(12, 132, 0); // Fixed Blue Target
     // -------------------- State machine --------------------
     private int pathState = 0;
@@ -46,10 +46,9 @@ public class Blue15FarAuto extends OpMode {
 
     private final ElapsedTime settleTimer = new ElapsedTime();
     private boolean isSettling = false;
-    private static final long SETTLE_DELAY_MS = 250;
-    public static final int FIXED_RPM = 3850;
+    private static final long SETTLE_DELAY_MS = 0;
 
-    private int targetAngle = 286;
+    private int targetAngle = 289;
 
 
     private void setState(int s) {
@@ -70,7 +69,7 @@ public class Blue15FarAuto extends OpMode {
     private ElapsedTime spitTimer = new ElapsedTime();
     private boolean spitInit = false;
 
-    // --- Shot/outtake state variables (from BlueTeleOp) ---
+    // --- Shot/outtake state variables ---
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
 
@@ -123,8 +122,9 @@ public class Blue15FarAuto extends OpMode {
         turret.on();
         turret.transferOff();
         intakeFlap.on();
-        spindexer.setShootIndex(1);
+        spindexer.setShootIndex(2);
         barIntake.spinIntake();
+        targetAngle = 289;
     }
 
     @Override
@@ -132,23 +132,24 @@ public class Blue15FarAuto extends OpMode {
         follower.update();
         Pose currentPose = follower.getPose();
 
+        double distance = Math.hypot(targetPose.getX() - currentPose.getX(), targetPose.getY() - currentPose.getY());
 
-        turret.goToPosition(targetAngle);
+        double currentRPM = 12.98196 * distance + 2102.57653;
+        double rampUpFactor = 0.5 * distance;
+        currentRPM += shotCount * (200 + rampUpFactor);
 
-        double currentRPM = FIXED_RPM;
-        double currentHood = 0.58;
-
-        currentRPM += shotCount * (300);
-        currentHood = turret.clamp(currentHood, 0.58, 1.0);
+        double currentHood = 0.50;
 
         turret.setShooterRPM(currentRPM);
         turret.setHoodPosition(currentHood);
+        turret.goToPosition(targetAngle);
         turret.on();
 
         spindexer.update();
 
-        // Spit out logic from BlueTeleOp
-        if (spindexer.isFull() && !outtakeInProgress) {
+        // Spit out logic
+        boolean isShootingPath = (pathState == 10 || pathState == 15) && currentPose.getX() > 24;
+        if ((spindexer.isFull() && !outtakeInProgress) || isShootingPath) {
             if (!spitInit) {
                 spitTimer.reset();
                 spitInit = true;
@@ -168,11 +169,6 @@ public class Blue15FarAuto extends OpMode {
                 barIntake.spinIntake();
             }
             spitInit = false;
-        }
-
-        // Force shoot index to 2 when approaching shoot position (X is around 58)
-        if (currentPose.getX() > 48 && !outtakeInProgress) {
-            spindexer.setShootIndex(2);
         }
 
         autonomousUpdate();
@@ -224,7 +220,7 @@ public class Blue15FarAuto extends OpMode {
                 break;
 
             case 4:
-                targetAngle = 336;
+                targetAngle = 338;
                 follower.followPath(paths.PickupSpike);
                 setState(5);
                 break;
@@ -259,21 +255,30 @@ public class Blue15FarAuto extends OpMode {
                 break;
                 
             case 8:
-                if (!follower.isBusy()) {
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(58.0, 20.0))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(140)).build());
+                    setState(11);
+                } else if (!follower.isBusy()) {
                     follower.followPath(paths.PickupStray2);
                     setState(9);
                 }
                 break;
                 
             case 9:
-                if (!follower.isBusy()) {
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(58.0, 20.0))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(140)).build());
+                    setState(11);
+                } else if (!follower.isBusy()) {
                     follower.followPath(paths.PickupStray3);
                     setState(10);
                 }
                 break;
                 
             case 10:
-                if(!follower.isBusy()) {
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(58.0, 20.0))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(140)).build());
+                    setState(11);
+                } else if(!follower.isBusy()) {
                     follower.followPath(paths.ShootStray);
                     setState(11);
                 }
@@ -297,21 +302,30 @@ public class Blue15FarAuto extends OpMode {
                 break;
                 
             case 13:
-                if (!follower.isBusy()) {
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(58.0, 20.0))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(140)).build());
+                    setState(16);
+                } else if (!follower.isBusy()) {
                     follower.followPath(paths.PickupStray2);
                     setState(14);
                 }
                 break;
                 
             case 14:
-                if (!follower.isBusy()) {
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(58.0, 20.0))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(140)).build());
+                    setState(16);
+                } else if (!follower.isBusy()) {
                     follower.followPath(paths.PickupStray3);
                     setState(15);
                 }
                 break;
                 
             case 15:
-                if(!follower.isBusy()) {
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(58.0, 20.0))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(140)).build());
+                    setState(16);
+                } else if(!follower.isBusy()) {
                     follower.followPath(paths.ShootStray);
                     setState(16);
                 }
@@ -347,11 +361,7 @@ public class Blue15FarAuto extends OpMode {
         outtakeTimer.reset();
         lastAdvanceTime = 0;
 
-
-        // Step 1: Turn on transfer wheel and turret wheel
         turret.transferOn();
-
-        // Step 2: Set kicker servo to kick
         lastAdvanceTime = outtakeTimer.milliseconds();
     }
 
@@ -359,16 +369,18 @@ public class Blue15FarAuto extends OpMode {
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
 
-        // Check if it's time for the next advanceIntake call
-        if (outtakeAdvanceCount < 2) {
+        if (outtakeAdvanceCount < 3) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 1.5 : OUTTAKE_DELAY_MS)) {
-                shotCount++;
+                char[] filled = spindexer.getFilled();
+                if (filled[spindexer.getShootIndex()] != '_') {
+                    shotCount++;
+                }
                 spindexer.retreatShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 2) {
+            if (currentTime - lastAdvanceTime > OUTTAKE_DELAY_MS) {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();
@@ -459,6 +471,8 @@ public class Blue15FarAuto extends OpMode {
         }
     }
 }
+
+
 
 
 

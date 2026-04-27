@@ -406,7 +406,7 @@ public class BlueTeleOp extends OpMode {
         double currentTime = outtakeTimer.milliseconds();
 
         // Check if it's time for the next advanceIntake call
-        if (outtakeAdvanceCount < 2) {
+        if (outtakeAdvanceCount < 3) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 1.5 : OUTTAKE_DELAY_MS)) {
                 char[] filled = spindexer.getFilled();
                 if (filled[spindexer.getShootIndex()] != '_') {
@@ -417,7 +417,7 @@ public class BlueTeleOp extends OpMode {
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 3) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();

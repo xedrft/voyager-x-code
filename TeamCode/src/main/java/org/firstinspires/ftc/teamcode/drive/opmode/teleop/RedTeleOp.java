@@ -81,6 +81,7 @@ public class RedTeleOp extends OpMode {
      */
     private double radialVelocityIps = 0.0;
 
+
     /** Tune: ignore tiny velocity noise. */
     private static final double RADIAL_VEL_DEADBAND_IPS = 1.0;
 
@@ -370,17 +371,16 @@ public class RedTeleOp extends OpMode {
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
 
         // Telemetry
-//        telemetry.addData("Lock Mode Active", isLocked);
-//        telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
-//        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")");
-//        telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
-//        telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
-//        telemetry.addData("Outtake In Progress", outtakeInProgress);
-//        telemetry.addData("Color Scan In Progress", spindexer.isAccurateColorScanInProgress());
-//        telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
-//        char[] filled = spindexer.getFilled();
-//        telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
-        telemetry.addData("PowerDraw: " , turret.getCurrentDraw());
+        telemetry.addData("Lock Mode Active", isLocked);
+        telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
+        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")");
+        telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
+        telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
+        telemetry.addData("Outtake In Progress", outtakeInProgress);
+        telemetry.addData("Color Scan In Progress", spindexer.isAccurateColorScanInProgress());
+        telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
+        char[] filled = spindexer.getFilled();
+        telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
         telemetry.update();
     }
 
@@ -406,15 +406,18 @@ public class RedTeleOp extends OpMode {
         double currentTime = outtakeTimer.milliseconds();
 
         // Check if it's time for the next advanceIntake call
-        if (outtakeAdvanceCount < 2) {
+        if (outtakeAdvanceCount < 3) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 1.5 : OUTTAKE_DELAY_MS)) {
-                shotCount++;
+                char[] filled = spindexer.getFilled();
+                if (filled[spindexer.getShootIndex()] != '_') {
+                    shotCount++;
+                }
                 spindexer.retreatShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 3) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();

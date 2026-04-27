@@ -42,7 +42,7 @@ public class RedCloseRackAuto extends OpMode {
 
     public static long PRESET_SETTLE_DELAY_MS = 0;
     public static long SETTLE_DELAY_MS = 0;
-    public static long GATE_WAIT_MS = 750; // Optional hold delay during gate intake
+    public static long GATE_WAIT_MS = 900; // Optional hold delay during gate intake
 
     Pose targetPose = new Pose(132, 132, 0); // Fixed Blue Target
     // -------------------- State machine --------------------
@@ -147,11 +147,11 @@ public class RedCloseRackAuto extends OpMode {
 
         double distance = Math.hypot(targetPose.getX() - currentPose.getX(), targetPose.getY() - currentPose.getY());
 
-        double currentRPM = 12.98196 * distance + 2152.57653;
+        double currentRPM = 12.98196 * distance + 2102.57653;
         double currentHood = (1.07947*Math.pow(10,-7))*Math.pow(distance, 4) - 0.0000376157*Math.pow(distance, 3) + 0.00473038*Math.pow(distance, 2) - 0.256541*distance + 5.77716;
 
-        double rampUpFactor = (distance > 100) ? 0.5 * distance : 0.3 * distance;
-        currentRPM += shotCount * (250 + rampUpFactor);
+        double rampUpFactor = 0.3 * distance;
+        currentRPM += shotCount * (100 + rampUpFactor);
         currentHood = turret.clamp(currentHood, 0, 1.0);
 
         if (spindexer.isFull() && !outtakeInProgress) {
@@ -406,11 +406,9 @@ public class RedCloseRackAuto extends OpMode {
         public PathChain ShootGateIntake;
         public PathChain PickupRack1;
         public PathChain ShootRack1;
-        public PathChain Park;
-        
         public static Pose shootPose = new Pose(86.000, 74.500);
-        public static Pose gateIntakePose = new Pose(134.911, 62.700);
-        public static double gateIntakeAngle = Math.toRadians(31);
+        public static Pose gateIntakePose = new Pose(132.5, 61.2);
+        public static double gateIntakeAngle = Math.toRadians(40);
 
         public Paths(Follower follower) {
             PresetShoot = follower.pathBuilder().addPath(
@@ -438,7 +436,7 @@ public class RedCloseRackAuto extends OpMode {
             GateIntake = follower.pathBuilder().addPath(
                 new BezierCurve(
                     shootPose,
-                    new Pose(113.717, 47.984),
+                    new Pose(110.717, 46.984),
                     gateIntakePose
                 )
             ).setTangentHeadingInterpolation().build();

@@ -36,7 +36,6 @@ public class RedFarPlayoff extends OpMode {
     private Spindexer spindexer;
     private Turret turret;
     private boolean spitInit = false;
-    double  currentRPM;
 
 
     // -------------------- Timers --------------------
@@ -49,6 +48,7 @@ public class RedFarPlayoff extends OpMode {
     private int pathState = 0;
     Pose targetPose = new Pose(132, 132, 0); // Fixed Red Target
     private int lastState = -1;
+    private int loopCountBalls = 0;
 
     private void setState(int s) {
         if (s != lastState) {
@@ -59,9 +59,7 @@ public class RedFarPlayoff extends OpMode {
     }
 
     // -------------------- Config --------------------
-    public static double OUTTAKE_DELAY_MS = 450;
-    public static final int FIXED_RPM = 3935;
-    private double targetAngle = 77.94;
+    public static double OUTTAKE_DELAY_MS = 350;
     private int shotCount = 0;
 
     // -------------------- Outtake routine --------------------
@@ -119,7 +117,7 @@ public class RedFarPlayoff extends OpMode {
         turret.on();
         turret.transferOff();
         intakeFlap.on();
-        spindexer.setShootIndex(1);
+        spindexer.setShootIndex(2);
         barIntake.spinIntake();
 
         setState(0);
@@ -132,38 +130,43 @@ public class RedFarPlayoff extends OpMode {
 
         // Subsystem updates
         turret.trackTarget(follower.getPose(), targetPose, 0);
-        turret.setShooterRPM(FIXED_RPM);
-        turret.setHoodPosition(0.58);
+
+        double distance = Math.hypot(targetPose.getX() - currentPose.getX(), targetPose.getY() - currentPose.getY());
+
+        double currentRPM = 12.98196 * distance + 2102.57653;
+        double rampUpFactor = 0.5 * distance;
+        currentRPM += shotCount * (200 + rampUpFactor);
+
+        double currentHood = 0.58;
+
+        turret.setShooterRPM(currentRPM);
+        turret.setHoodPosition(currentHood);
         turret.on();
 
-        if (spindexer.isFull() && !outtakeInProgress) {
+        spindexer.update();
+
+        // Spit out logic
+        boolean isShootingPath = (pathState == 4 || pathState == 8 || pathState == 12) && currentPose.getX() < 115;
+        if ((spindexer.isFull() && !outtakeInProgress) || isShootingPath) {
             if (!spitInit) {
                 spitTimer.reset();
                 spitInit = true;
             }
             spindexer.goToOuttakePosition();
             double spitElapsed = spitTimer.milliseconds();
-            if (spitElapsed > 125 && spitElapsed < 225) {
+            if (spitElapsed > 150 && spitElapsed < 250) {
                 barIntake.spinOuttake();
-            }
-            else if (spitElapsed >= 225) {
+            } else if (spitElapsed >= 250) {
                 spindexer.setShootIndex(2);
                 barIntake.stop();
-            }
-            else {
+            } else {
                 barIntake.stop();
             }
         } else {
+            if (spitInit) {
+                barIntake.spinIntake();
+            }
             spitInit = false;
-        }
-
-        spindexer.update();
-
-        // Spit logic from RedCloseRackAuto
-        if (spindexer.isFull() && !outtakeInProgress) {
-            // Simplification of spit logic for auto if needed, or keep exactly same
-            spindexer.goToOuttakePosition();
-            // In the RedCloseRackAuto there was a timer based spit, omitted here for brevity or can be added
         }
 
         autonomousUpdate();
@@ -194,75 +197,127 @@ public class RedFarPlayoff extends OpMode {
 
             case 1: // Wait for preset shot to finish
                 if (!outtakeInProgress) {
-                    follower.followPath(paths.Pickup1);
+                    follower.followPath(paths.PickUpHumanPlayer);
                     setState(2);
                 }
                 break;
 
-            case 2: // Arrive at Pickup1
-                if (!follower.isBusy()) {
+            case 2: // Arrive at PickUpHumanPlayer
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(99.0, 13.0))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(0)).build());
+                    setState(4);
+                } else if (!follower.isBusy()) {
                     waitTimer.reset();
                     setState(3);
                 }
                 break;
 
-            case 3: // Wait 0.5s for pickup
-                if (waitTimer.seconds() > 0.5) {
-                    follower.followPath(paths.Shoot1);
+            case 3: // Wait 80ms for pickup
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(99.0, 13.0))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(0)).build());
+                    setState(4);
+                } else if (waitTimer.milliseconds() > 0) {
+                    follower.followPath(paths.ShootHumanPlayer);
                     setState(4);
                 }
                 break;
 
-            case 4: // Arrive at Shoot1
+            case 4: // Arrive at ShootHumanPlayer
                 if (!follower.isBusy()) {
                     startOuttakeRoutine();
                     setState(5);
                 }
                 break;
 
-            case 5: // After Shoot1 outtake, check loop exit
+            case 5: // After ShootHumanPlayer outtake, route to PickUpRack1 at 0.9 speed
                 if (!outtakeInProgress) {
-                    if (matchTimer.seconds() > 27.0) {
-                        follower.followPath(paths.Park);
-                        setState(10);
-                    } else {
-                        follower.followPath(paths.Pickup2);
-                        setState(6);
-                    }
+                    follower.followPath(paths.PickUpRack1, 0.9, false);
+                    setState(6);
                 }
                 break;
 
-            case 6: // Arrive at Pickup2
-                if (!follower.isBusy()) {
+            case 6: // Arrive at PickUpRack1
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(99.846, 11.537))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(0)).build());
+                    setState(8);
+                } else if (!follower.isBusy()) {
                     waitTimer.reset();
                     setState(7);
                 }
                 break;
 
-            case 7: // Wait 0.5s for pickup
-                if (waitTimer.seconds() > 0.5) {
-                    follower.followPath(paths.Shoot2);
+            case 7: // Settle and ShootRack1
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(99.846, 11.537))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(0)).build());
+                    setState(8);
+                } else if (waitTimer.milliseconds() > 0.0) {
+                    follower.followPath(paths.ShootRack1);
                     setState(8);
                 }
                 break;
 
-            case 8: // Arrive at Shoot2
+            case 8: // Arrive at ShootRack1
                 if (!follower.isBusy()) {
                     startOuttakeRoutine();
                     setState(9);
                 }
                 break;
 
-            case 9: // After Shoot2 outtake, loop back to check time
+            case 9: // Setup 2 loops for PickUpBalls
                 if (!outtakeInProgress) {
-                    setState(5);
+                    loopCountBalls = 0;
+                    follower.followPath(paths.PickUpBalls);
+                    setState(10);
                 }
                 break;
 
-            case 10: // Done
-                if (!follower.isBusy()) {
+            case 10: // Arrive at PickUpBalls
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(99.846, 13.229))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(0)).build());
+                    setState(12);
+                } else if (!follower.isBusy()) {
+                    waitTimer.reset();
                     setState(11);
                 }
+                break;
+
+            case 11: // Wait 80ms for pickup
+                if (spindexer.isFull()) {
+                    follower.followPath(follower.pathBuilder().addPath(new BezierLine(follower.getPose(), new Pose(99.846, 13.229))).setLinearHeadingInterpolation(follower.getPose().getHeading(), Math.toRadians(0)).build());
+                    setState(12);
+                } else if (waitTimer.milliseconds() > 0) {
+                    follower.followPath(paths.ShootBalls);
+                    setState(12);
+                }
+                break;
+
+            case 12: // Arrive at ShootBalls
+                if (!follower.isBusy()) {
+                    startOuttakeRoutine();
+                    setState(13);
+                }
+                break;
+
+            case 13: // After ShootBalls outtake, repeat up to 2 times
+                if (!outtakeInProgress) {
+                    loopCountBalls++;
+                    if (loopCountBalls < 2) {
+                        follower.followPath(paths.PickUpBalls);
+                        setState(10);
+                    } else {
+                        follower.followPath(paths.Park);
+                        setState(14);
+                    }
+                }
+                break;
+
+            case 14: // Done, Park
+                if (!follower.isBusy()) {
+                    setState(15);
+                }
+                break;
+
+            case 15:
                 break;
         }
     }
@@ -278,15 +333,18 @@ public class RedFarPlayoff extends OpMode {
 
     private void handleOuttakeRoutine() {
         double currentTime = outtakeTimer.milliseconds();
-        if (outtakeAdvanceCount < 2) {
+        if (outtakeAdvanceCount < 3) {
             if (currentTime - lastAdvanceTime >= (outtakeAdvanceCount == 0 ? OUTTAKE_DELAY_MS / 1.5 : OUTTAKE_DELAY_MS)) {
-                shotCount++;
+                char[] filled = spindexer.getFilled();
+                if (filled[spindexer.getShootIndex()] != '_') {
+                    shotCount++;
+                }
                 spindexer.retreatShoot();
                 outtakeAdvanceCount++;
                 lastAdvanceTime = currentTime;
             }
         } else {
-            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS * 2) {
+            if (currentTime - lastAdvanceTime >= OUTTAKE_DELAY_MS) {
                 barIntake.spinIntake();
                 spindexer.clearTracking();
                 turret.transferOff();
@@ -299,42 +357,85 @@ public class RedFarPlayoff extends OpMode {
     }
 
     public static class Paths {
-        public PathChain Pickup1;
-        public PathChain Shoot1;
-        public PathChain Pickup2;
-        public PathChain Shoot2;
+        public PathChain PickUpHumanPlayer;
+        public PathChain ShootHumanPlayer;
+        public PathChain PickUpRack1;
+        public PathChain ShootRack1;
+        public PathChain PickUpBalls;
+        public PathChain ShootBalls;
         public PathChain Park;
 
         public Paths(Follower follower) {
-            // Pickup 1: (100, 9) -> (134, 9)
-            Pickup1 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(100.000, 9.000), new Pose(134.000, 9.000)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+            PickUpHumanPlayer = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(105.000, 10.000),
+
+                                    new Pose(132.500, 10.000)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+
                     .build();
 
-            // Shoot 1: (134, 9) -> (100, 9)
-            Shoot1 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(134.000, 9.000), new Pose(100.000, 9.000)))
-                    .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+            ShootHumanPlayer = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(132.500, 10.000),
+
+                                    new Pose(99.000, 13.000)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+
                     .build();
 
-            // Pickup 2: (100, 9) -> (130.572, 20.034)
-            Pickup2 = follower.pathBuilder()
-                    .addPath(new BezierCurve(new Pose(100.000, 9.000), new Pose(122.024, 9.116), new Pose(130.572, 20.034)))
-                    .setTangentHeadingInterpolation()
+            PickUpRack1 = follower.pathBuilder().addPath(
+                            new BezierCurve(
+                                    new Pose(99.000, 13.000),
+                                    new Pose(100.105, 36.912),
+                                    new Pose(125.417, 36.169)
+                            )
+                    ).setTangentHeadingInterpolation()
+
                     .build();
 
-            // Shoot 2: (130.572, 20.034) -> (100, 9)
-            Shoot2 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(130.572, 20.034), new Pose(100.000, 9.000)))
-                    .setLinearHeadingInterpolation(Math.toRadians(54), Math.toRadians(0))
+            ShootRack1 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(125.417, 36.169),
+
+                                    new Pose(99.846, 11.537)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+
                     .build();
 
-            // Park: (100, 9) -> (100, 15)
-            Park = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(100.000, 9.000), new Pose(100.000, 15.000)))
-                    .setTangentHeadingInterpolation()
+            PickUpBalls = follower.pathBuilder().addPath(
+                            new BezierCurve(
+                                    new Pose(99.846, 11.537),
+                                    new Pose(127.329, 7.515),
+                                    new Pose(131.921, 25.182)
+                            )
+                    ).setTangentHeadingInterpolation()
+
+                    .build();
+
+            ShootBalls = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(131.921, 25.182),
+
+                                    new Pose(99.846, 13.229)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(0))
+
+                    .build();
+
+            Park = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(99.846, 13.229),
+
+                                    new Pose(100.000, 20.000)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
+
                     .build();
         }
     }
 }
+
