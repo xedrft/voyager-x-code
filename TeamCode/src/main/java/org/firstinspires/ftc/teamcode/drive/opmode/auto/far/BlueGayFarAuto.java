@@ -147,7 +147,7 @@ public class BlueGayFarAuto extends OpMode {
 
         // Spit out logic
         boolean isShootingPath = (pathState == 9 || pathState == 12 || pathState == 15 || pathState == 18) && currentPose.getX() < 124;
-        if ((spindexer.isFull() && !outtakeInProgress) || isShootingPath) {
+        if ((spindexer.isFull() && !outtakeInProgress)) {
             if (!spitInit) {
                 spitTimer.reset();
                 spitInit = true;
@@ -458,7 +458,6 @@ public class BlueGayFarAuto extends OpMode {
                                     new Pose(13.000, 35.500)
                             )
                     ).setTangentHeadingInterpolation()
-
                     .build();
 
             ShootSpike = follower.pathBuilder().addPath(
@@ -496,7 +495,7 @@ public class BlueGayFarAuto extends OpMode {
                             new Pose(144-131.921, 25.182),
                             new Pose(40.000, 9.000)
                     )
-            ).setTangentHeadingInterpolation().setReversed().build();
+            ).setLinearHeadingInterpolation(PickupStray2.getFinalHeadingGoal(), Math.toRadians(180)).build();
 
             Leave = follower.pathBuilder().addPath(
                     new BezierLine(

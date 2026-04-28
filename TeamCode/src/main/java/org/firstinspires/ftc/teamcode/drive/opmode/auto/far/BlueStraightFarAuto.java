@@ -132,7 +132,7 @@ public class BlueStraightFarAuto extends OpMode {
 
         double distance = Math.hypot(targetPose.getX() - currentPose.getX(), targetPose.getY() - currentPose.getY());
 
-        double currentRPM = 12.98196 * distance + 2102.57653;
+        double currentRPM = 12.98196 * distance + 2192.57653;
         double rampUpFactor = 0.5*distance;
         currentRPM += shotCount * (200 + rampUpFactor);
 
@@ -188,7 +188,7 @@ public class BlueStraightFarAuto extends OpMode {
                 break;
 
             case 1:
-                targetAngle = 7;
+                targetAngle = 8;
                 follower.followPath(paths.PickupCorner);
                 setState(2);
                 break;
@@ -218,7 +218,7 @@ public class BlueStraightFarAuto extends OpMode {
                 break;
 
             case 4:
-                targetAngle = 338;
+                targetAngle = 340;
                 follower.followPath(paths.PickupSpike);
                 setState(5);
                 break;
@@ -248,7 +248,7 @@ public class BlueStraightFarAuto extends OpMode {
                 break;
 
             case 7:
-                targetAngle = 289;
+                targetAngle = 288;
                 follower.followPath(paths.PickupStray);
                 setState(8);
                 break;
