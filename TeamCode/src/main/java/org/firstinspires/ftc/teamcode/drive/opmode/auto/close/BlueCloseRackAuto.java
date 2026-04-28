@@ -21,7 +21,7 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@Autonomous(name = "Blue Rack Auto", group = "Autonomous")
+@Autonomous(name = "Blue Close Auto", group = "Autonomous")
 @Configurable
 public class BlueCloseRackAuto extends OpMode {
 
@@ -408,7 +408,7 @@ public class BlueCloseRackAuto extends OpMode {
         public PathChain ShootRack1;
         public static Pose shootPose = new Pose(144 - 86.000, 74.500);
         public static Pose gateIntakePose = new Pose(144 - 132.5, 61.2);
-        public static double gateIntakeAngle = Math.toRadians(180+40);
+        public static double gateIntakeAngle = Math.toRadians(180-40);
 
         public Paths(Follower follower) {
             PresetShoot = follower.pathBuilder().addPath(
@@ -416,7 +416,7 @@ public class BlueCloseRackAuto extends OpMode {
                     new Pose(144 - 123.396, 122.422),
                     shootPose
                 )
-            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0)).build();
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180)).build();
 
             PickupRack2 = follower.pathBuilder().addPath(
                 new BezierCurve(
@@ -431,7 +431,7 @@ public class BlueCloseRackAuto extends OpMode {
                     new Pose(144 - 126.713, 58.993),
                     shootPose
                 )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             GateIntake = follower.pathBuilder().addPath(
                 new BezierCurve(
@@ -454,14 +454,14 @@ public class BlueCloseRackAuto extends OpMode {
                     new Pose(144 - 98.720, 84.594),
                     new Pose(144 - 126.857, 84.155)
                 )
-            ).setLinearHeadingInterpolation(gateIntakeAngle, Math.toRadians(0)).build();
+            ).setLinearHeadingInterpolation(gateIntakeAngle, Math.toRadians(180)).build();
 
             ShootRack1 = follower.pathBuilder().addPath(
                 new BezierLine(
                     new Pose(144 - 126.857, 84.155),
                     new Pose(144 - 90, 112)
                 )
-            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0)).build();
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180)).build();
 
         }
     }

@@ -21,7 +21,7 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@Autonomous(name = "Red Rack Auto", group = "Autonomous")
+@Autonomous(name = "Red Close Auto", group = "Autonomous")
 @Configurable
 public class RedCloseRackAuto extends OpMode {
 

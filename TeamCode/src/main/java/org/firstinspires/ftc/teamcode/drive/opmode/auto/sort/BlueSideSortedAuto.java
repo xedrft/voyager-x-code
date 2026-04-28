@@ -62,7 +62,7 @@ public class BlueSideSortedAuto extends OpMode {
     // Config
     public static double OUTTAKE_DELAY_MS = 350;
     public static double PARK_SPEED = 1.0;
-    public static double SCAN_TURRET_DEG = 150;
+    public static double SCAN_TURRET_DEG = 210;
     private static final long SETTLE_DELAY_MS = 250;
 
     // Shooting (from RedCloseRackAuto)
@@ -464,7 +464,7 @@ public class BlueSideSortedAuto extends OpMode {
                             new Pose(21.500, 122.500),
                             new Pose(42, 105)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             Pickup1 = follower.pathBuilder().addPath(
                     new BezierCurve(
@@ -472,7 +472,7 @@ public class BlueSideSortedAuto extends OpMode {
                             new Pose(67.500,  79.000),
                             new Pose(15.000,  85.500)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             Overflow = follower.pathBuilder().addPath(
                     new BezierCurve(
@@ -480,14 +480,14 @@ public class BlueSideSortedAuto extends OpMode {
                             new Pose(27.000, 80.000),
                             new Pose(13.500, 78.000)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             Shoot1 = follower.pathBuilder().addPath(
                     new BezierLine(
                             new Pose(13.500, 78.000),
                             new Pose(42, 105)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             Pickup2 = follower.pathBuilder().addPath(
                     new BezierCurve(
@@ -495,7 +495,7 @@ public class BlueSideSortedAuto extends OpMode {
                             new Pose(70.000,  55.000),
                             new Pose( 5.500,  60.500)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             Shoot2 = follower.pathBuilder().addPath(
                     new BezierCurve(
@@ -503,7 +503,7 @@ public class BlueSideSortedAuto extends OpMode {
                             new Pose(61.000,  52.000),
                             new Pose(42, 105)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             Pickup3 = follower.pathBuilder().addPath(
                     new BezierCurve(
@@ -511,7 +511,7 @@ public class BlueSideSortedAuto extends OpMode {
                             new Pose(86.000,  27.500),
                             new Pose( 5.500,  37.500)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             Shoot3 = follower.pathBuilder().addPath(
                     new BezierCurve(
@@ -522,14 +522,14 @@ public class BlueSideSortedAuto extends OpMode {
                             new Pose(32.928,  93.919),
                             new Pose(42, 105)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
 
             Park = follower.pathBuilder().addPath(
                     new BezierLine(
                             new Pose(42, 105),
                             new Pose(42,  75.000)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
         }
     }
 }

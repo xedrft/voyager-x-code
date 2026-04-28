@@ -63,7 +63,7 @@ public class RedStraightFarAuto extends OpMode {
     private final ElapsedTime outtakeTimer = new ElapsedTime();
     private boolean outtakeInProgress = false;
     private int shotCount = 0;
-    private int targetAngle = 289-180;
+    private int targetAngle = 360-289;
 
     private ElapsedTime spitTimer = new ElapsedTime();
     private boolean spitInit = false;
@@ -122,7 +122,7 @@ public class RedStraightFarAuto extends OpMode {
         intakeFlap.on();
         spindexer.setShootIndex(2);
         barIntake.spinIntake();
-        targetAngle = 289-180;
+        targetAngle = 360-289;
     }
 
     @Override
@@ -188,7 +188,7 @@ public class RedStraightFarAuto extends OpMode {
                 break;
 
             case 1:
-                targetAngle = 188;
+                targetAngle = 360-8;
                 follower.followPath(paths.PickupCorner);
                 setState(2);
                 break;
@@ -218,7 +218,7 @@ public class RedStraightFarAuto extends OpMode {
                 break;
 
             case 4:
-                targetAngle = 340-180;
+                targetAngle = 360-340;
                 follower.followPath(paths.PickupSpike);
                 setState(5);
                 break;
@@ -248,7 +248,7 @@ public class RedStraightFarAuto extends OpMode {
                 break;
 
             case 7:
-                targetAngle = 289-180;
+                targetAngle = 360-289;
                 follower.followPath(paths.PickupStray);
                 setState(8);
                 break;
@@ -441,14 +441,14 @@ public class RedStraightFarAuto extends OpMode {
                             new Pose(144 - 39.000, 9.000),
                             new Pose(144 -  9.000, 9.000)
                     )
-            ).setConstantHeadingInterpolation(Math.toRadians(180)).build();
+            ).setConstantHeadingInterpolation(Math.toRadians(0)).build();
 
             ShootCorner = follower.pathBuilder().addPath(
                     new BezierLine(
                             new Pose(144 -  9.000,  9.000),
                             new Pose(144 - 58.000, 20.000)
                     )
-            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(110)).build();
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(70)).build();
 
             PickupSpike = follower.pathBuilder().addPath(
                     new BezierCurve(
@@ -463,7 +463,7 @@ public class RedStraightFarAuto extends OpMode {
                             new Pose(144 - 22.500, 28.000),
                             new Pose(144 - 58.000, 20.000)
                     )
-            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(140)).build();
+            ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(40)).build();
 
             PickupStray = follower.pathBuilder().addPath(
                     new BezierCurve(
