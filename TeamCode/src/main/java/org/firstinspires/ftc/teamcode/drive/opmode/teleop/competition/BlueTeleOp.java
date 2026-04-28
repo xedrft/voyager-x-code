@@ -50,6 +50,8 @@ public class BlueTeleOp extends OpMode {
     private boolean singleOuttakeInProgress = false;
     private boolean singleAtPosition = false;
     private static double OUTTAKE_DELAY_MS = 300;
+    private static double AUTOSHOOT_TRIANGLE_MARGIN = 0.0; // inches inset from each triangle edge; increase to shrink valid zone
+    private static double AUTOSHOOT_RPM_TOLERANCE = 150.0; // RPM; shooter must be within this of target to fire
 
     private ElapsedTime spitTimer = new ElapsedTime();
     private boolean spitInit = false;
@@ -253,6 +255,18 @@ public class BlueTeleOp extends OpMode {
             startOuttakeRoutine();
         }
 
+        // Autoshoot: right trigger held + spindexer full + in shooting triangle + turret can aim + RPM ready
+        if (!colorScanInProgress && gamepad1.right_trigger > 0.5 && !outtakeInProgress && !singleOuttakeInProgress) {
+            if (spindexer.isFull() &&
+                    isInShootingTriangle(currentPose) &&
+                    isTurretWithinLimits() &&
+                    Math.abs(turret.getShooterRpmError()) < AUTOSHOOT_RPM_TOLERANCE) {
+                turret.on();
+                startOuttakeRoutine();
+                isLocked = false; // no position lock for autoshoot — robot can shoot while moving
+            }
+        }
+
 //         Turret tracking: use velocity compensation when shooting while moving
 //         If robot Y position is > 30, compute adjusted aiming point by subtracting robot velocity * flightTime from target
         if (follower.getPose().getY() > 30) {
@@ -370,10 +384,31 @@ public class BlueTeleOp extends OpMode {
         telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
         telemetry.addData("Outtake In Progress", outtakeInProgress);
         telemetry.addData("Color Scan In Progress", spindexer.isAccurateColorScanInProgress());
+        telemetry.addData("Autoshoot Trigger", gamepad1.right_trigger > 0.5);
+        telemetry.addData("In Shoot Triangle", isInShootingTriangle(currentPose));
+        telemetry.addData("Turret In Limits", isTurretWithinLimits());
+        telemetry.addData("Shooter RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRpmError()));
         telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
         char[] filled = spindexer.getFilled();
         telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
         telemetry.update();
+    }
+
+    // Triangle vertices: (144,144), (72,72), (0,144)
+    // Edges: x+y=144 (bottom), y=x (right side), y=144 (top)
+    // AUTOSHOOT_TRIANGLE_MARGIN shrinks each edge inward uniformly — increase to require robot to be deeper inside before firing
+    private boolean isInShootingTriangle(Pose pose) {
+        double x = pose.getX();
+        double y = pose.getY();
+        double m = AUTOSHOOT_TRIANGLE_MARGIN;
+        return (x + y >= 144.0 + m) && (y - x >= m) && (y <= 144.0 - m);
+    }
+
+    // Returns true if the turret's current commanded angle is within the servo's physical range (45–315°).
+    // If false, the servo has been clamped and the robot is NOT actually aiming at the goal.
+    private boolean isTurretWithinLimits() {
+        double adjusted = (turret.getAngle() + 180.0) % 360.0;
+        return adjusted >= 45.0 && adjusted <= 315.0;
     }
 
     private void startOuttakeRoutine() {
