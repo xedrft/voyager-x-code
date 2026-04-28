@@ -146,7 +146,7 @@ public class BlueGayFarAuto extends OpMode {
         spindexer.update();
 
         // Spit out logic
-        boolean isShootingPath = (pathState == 9 || pathState == 12 || pathState == 15 || pathState == 18) && currentPose.getX() > 24;
+        boolean isShootingPath = (pathState == 9 || pathState == 12 || pathState == 15 || pathState == 18) && currentPose.getX() < 124;
         if ((spindexer.isFull() && !outtakeInProgress) || isShootingPath) {
             if (!spitInit) {
                 spitTimer.reset();
