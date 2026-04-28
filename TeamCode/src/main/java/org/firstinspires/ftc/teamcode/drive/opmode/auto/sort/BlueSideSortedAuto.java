@@ -96,7 +96,7 @@ public class BlueSideSortedAuto extends OpMode {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(21.5, 121.5, Math.toRadians(0)));
+        follower.setStartingPose(new Pose(21.5, 121.5, Math.toRadians(180)));
 
         barIntake = new BarIntake(hardwareMap, "barIntake", false);
         intakeFlap = new IntakeFlap(hardwareMap, "intakeFlapServo");
@@ -157,7 +157,7 @@ public class BlueSideSortedAuto extends OpMode {
             turret.goToPosition(SCAN_TURRET_DEG);
         } else {
             Vector vel = follower.getVelocity();
-            if (vel == null) {
+            if (vel != null) {
                 turret.trackTarget(currentPose, targetPose, 0);
             } else {
                 double flightTime = 0.6;
@@ -177,7 +177,7 @@ public class BlueSideSortedAuto extends OpMode {
                 targetPose.getX() - currentPose.getX(),
                 targetPose.getY() - currentPose.getY()
         );
-        double currentRPM = 12.98196 * distance + 2092.57653;
+        double currentRPM = 12.98196 * distance + 2072.57653;
         double currentHood = (1.07947e-7) * Math.pow(distance, 4)
                 - 0.0000376157 * Math.pow(distance, 3)
                 + 0.00473038  * Math.pow(distance, 2)
@@ -197,12 +197,12 @@ public class BlueSideSortedAuto extends OpMode {
             }
             spindexer.goToOuttakePosition();
             double spitElapsed = spitTimer.milliseconds();
-            if (spitElapsed > 125 && spitElapsed < 225) {
+            if (spitElapsed > 200 && spitElapsed < 300) {
                 barIntake.spinOuttake();
             }
-            else if (spitElapsed >= 225) {
-                if (order != null) spindexer.setShootIndex(order[currentOrderIndex]);
-                else spindexer.setShootIndex(2);
+            else if (spitElapsed >= 300) {
+                if (order != null) spindexer.goToOuttakePosition(order[currentOrderIndex]);
+                else spindexer.goToOuttakePosition();
                 barIntake.stop();
             }
             else {

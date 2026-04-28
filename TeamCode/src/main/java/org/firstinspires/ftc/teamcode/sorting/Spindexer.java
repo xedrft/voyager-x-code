@@ -83,7 +83,7 @@ public class Spindexer {
     // Shoot: 180 (0.5), 300 (0.833), 60 (0.167)
     public static final double[] SHOOT_ANGLES = {240.0, 120.0, 0.0};
     public static final double[] COLOR_SCAN_ANGLES = {60.0, 300.0, 180.0};
-    public static final double OUTTAKE_ANGLE = 60.0;
+    public static final double[] OUTTAKE_ANGLES = {180.0, 60.0,300.0} ;
 
     public Spindexer(HardwareMap hardwareMap, String motorName, String analogName, String distanceSensorName, ColorSensor colorSensor, IntakeFlap intakeFlap) {
         this.spindexerMotor = hardwareMap.get(DcMotorEx.class, motorName);
@@ -126,8 +126,13 @@ public class Spindexer {
         angleOffsetDegrees = normalizeAngleDegrees(-raw);
     }
 
+    public void goToOuttakePosition(int index) {
+        startMoveToAngle(OUTTAKE_ANGLES[index]);
+        shootIndex = index;
+    }
+
     public void goToOuttakePosition() {
-        startMoveToAngle(OUTTAKE_ANGLE);
+        goToOuttakePosition(2);
     }
 
 

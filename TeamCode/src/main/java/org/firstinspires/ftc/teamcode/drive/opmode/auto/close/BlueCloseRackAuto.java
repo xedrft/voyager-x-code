@@ -132,10 +132,10 @@ public class BlueCloseRackAuto extends OpMode {
         Pose currentPose = follower.getPose();
 
         Vector vel = follower.getVelocity();
-        if (vel == null) {
+        if (true) {
             turret.trackTarget(follower.getPose(), targetPose, 0);
         } else {
-            double flightTime = 0.6; // .2 second constant as requested
+            double flightTime = 0.0; // .2 second constant as requested
             double adjustX = vel.getXComponent() * flightTime;
             double adjustY = vel.getYComponent() * flightTime;
             Pose adjustedTarget = new Pose(targetPose.getX() - adjustX, targetPose.getY() - adjustY, targetPose.getHeading());
@@ -407,7 +407,7 @@ public class BlueCloseRackAuto extends OpMode {
         public PathChain PickupRack1;
         public PathChain ShootRack1;
         public static Pose shootPose = new Pose(144 - 86.000, 74.500);
-        public static Pose gateIntakePose = new Pose(144 - 132.5, 61.2);
+        public static Pose gateIntakePose = new Pose(144 - 133.5, 61.5);
         public static double gateIntakeAngle = Math.toRadians(180-40);
 
         public Paths(Follower follower) {

@@ -63,6 +63,9 @@ public class RedTeleOp extends OpMode {
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
 
+    private static double AUTOSHOOT_TRIANGLE_MARGIN = 0.0; // inches inset from each triangle edge; increase to shrink valid zone
+    private static double AUTOSHOOT_RPM_TOLERANCE = 150.0; // RPM; shooter must be within this of target to fire
+
     // --- velocity-based RPM compensation ---
     private Pose lastPose = null;
     private double lastPoseTimeSec = 0.0;
@@ -209,7 +212,7 @@ public class RedTeleOp extends OpMode {
         }
         lastPose = currentPose;
         lastPoseTimeSec = nowSec;
-        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 400 : 225;
+        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 350 : 225;
 
 
         // Field Reset
@@ -221,14 +224,14 @@ public class RedTeleOp extends OpMode {
             lockMode.unlockPosition();
         }
 
-        if (gamepad2.yWasPressed() && !colorScanInProgress && !outtakeInProgress && !singleOuttakeInProgress) {
+        if (gamepad1.yWasPressed() && !colorScanInProgress && !outtakeInProgress && !singleOuttakeInProgress) {
             spindexer.startAccurateColorScan();
             colorScanInProgress = spindexer.isAccurateColorScanInProgress();
             if (colorScanInProgress) {
                 barIntake.stop();
                 intakeFlap.off();
                 intakeServo.outtake();
-                gamepad2.rumble(200);
+                gamepad1.rumble(200);
             }
         }
 
@@ -271,6 +274,18 @@ public class RedTeleOp extends OpMode {
             }
         } else {
             turret.trackTarget(follower.getPose(), targetPose, offset_turret);
+        }
+
+        // Autoshoot: right trigger held + spindexer full + in shooting triangle + turret can aim + RPM ready
+        if (!colorScanInProgress && gamepad1.right_trigger > 0.5 && !outtakeInProgress && !singleOuttakeInProgress) {
+            if (spindexer.isFull() &&
+                    isInShootingTriangle(currentPose) &&
+                    isTurretWithinLimits() &&
+                    Math.abs(turret.getShooterRpmError()) < AUTOSHOOT_RPM_TOLERANCE) {
+                turret.on();
+                startOuttakeRoutine();
+                isLocked = false; // no position lock for autoshoot — robot can shoot while moving
+            }
         }
 
 
@@ -339,10 +354,10 @@ public class RedTeleOp extends OpMode {
             }
             spindexer.goToOuttakePosition();
             double spitElapsed = spitTimer.milliseconds();
-            if (spitElapsed > 125 && spitElapsed < 225) {
+            if (spitElapsed > 150 && spitElapsed < 250) {
                 barIntake.spinOuttake();
             }
-            else if (spitElapsed >= 225) {
+            else if (spitElapsed >= 250) {
                 spindexer.setShootIndex(2);
                 barIntake.stop();
             }
@@ -447,7 +462,7 @@ public class RedTeleOp extends OpMode {
                 shotCount++;
             }
         } else {
-            if (outtakeTimer.milliseconds() > OUTTAKE_DELAY_MS){
+            if (outtakeTimer.milliseconds() > OUTTAKE_DELAY_MS*2){
                 turret.transferOff();
                 spindexer.setColorAtPos('_', spindexer.getShootIndex());
                 singleOuttakeInProgress = false;
@@ -459,4 +474,23 @@ public class RedTeleOp extends OpMode {
             }
         }
     }
+
+    // Triangle vertices: (144,144), (72,72), (0,144)
+    // Edges: x+y=144 (bottom), y=x (right side), y=144 (top)
+    // AUTOSHOOT_TRIANGLE_MARGIN shrinks each edge inward uniformly — increase to require robot to be deeper inside before firing
+    private boolean isInShootingTriangle(Pose pose) {
+        double x = pose.getX();
+        double y = pose.getY();
+        double m = AUTOSHOOT_TRIANGLE_MARGIN;
+        return (x + y >= 144.0 + m) && (y - x >= m) && (y <= 144.0 - m);
+    }
+
+    // Returns true if the turret's current commanded angle is within the servo's physical range (45–315°).
+    // If false, the servo has been clamped and the robot is NOT actually aiming at the goal.
+    private boolean isTurretWithinLimits() {
+        double adjusted = (turret.getAngle() + 180.0) % 360.0;
+        return adjusted >= 45.0 && adjusted <= 315.0;
+    }
 }
+
+

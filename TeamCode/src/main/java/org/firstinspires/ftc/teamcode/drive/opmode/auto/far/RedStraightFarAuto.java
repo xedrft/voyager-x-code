@@ -63,7 +63,7 @@ public class RedStraightFarAuto extends OpMode {
     private final ElapsedTime outtakeTimer = new ElapsedTime();
     private boolean outtakeInProgress = false;
     private int shotCount = 0;
-    private int targetAngle = 360-289;
+    private int targetAngle = 360-284;
 
     private ElapsedTime spitTimer = new ElapsedTime();
     private boolean spitInit = false;
@@ -122,7 +122,7 @@ public class RedStraightFarAuto extends OpMode {
         intakeFlap.on();
         spindexer.setShootIndex(2);
         barIntake.spinIntake();
-        targetAngle = 360-289;
+        targetAngle = 360-284;
     }
 
     @Override
@@ -188,7 +188,7 @@ public class RedStraightFarAuto extends OpMode {
                 break;
 
             case 1:
-                targetAngle = 360-8;
+                targetAngle = 360-6;
                 follower.followPath(paths.PickupCorner);
                 setState(2);
                 break;
@@ -218,7 +218,7 @@ public class RedStraightFarAuto extends OpMode {
                 break;
 
             case 4:
-                targetAngle = 360-340;
+                targetAngle = 360-338;
                 follower.followPath(paths.PickupSpike);
                 setState(5);
                 break;
@@ -248,7 +248,7 @@ public class RedStraightFarAuto extends OpMode {
                 break;
 
             case 7:
-                targetAngle = 360-289;
+                targetAngle = 360-284;
                 follower.followPath(paths.PickupStray);
                 setState(8);
                 break;

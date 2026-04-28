@@ -407,7 +407,7 @@ public class RedCloseRackAuto extends OpMode {
         public PathChain PickupRack1;
         public PathChain ShootRack1;
         public static Pose shootPose = new Pose(86.000, 74.500);
-        public static Pose gateIntakePose = new Pose(132.5, 61.2);
+        public static Pose gateIntakePose = new Pose(133.5, 61.5);
         public static double gateIntakeAngle = Math.toRadians(40);
 
         public Paths(Follower follower) {

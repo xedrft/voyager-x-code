@@ -10,8 +10,8 @@ public class ColorSensor {
     private final com.qualcomm.robotcore.hardware.NormalizedColorSensor normalized;
 
     private static final float purpleHue = 240f;
-    private static final float greenHue = 150f;
-    private static final float TOLERANCE = 40f;
+    private static final float greenHue = 160f;
+    private static final float TOLERANCE = 30f;
 
     public ColorSensor(HardwareMap hardwareMap, String deviceName) {
         normalized = hardwareMap.get(com.qualcomm.robotcore.hardware.NormalizedColorSensor.class, deviceName);

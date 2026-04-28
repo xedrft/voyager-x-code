@@ -157,7 +157,7 @@ public class RedSideSortedAuto extends OpMode {
             turret.goToPosition(SCAN_TURRET_DEG);
         } else {
             Vector vel = follower.getVelocity();
-            if (vel == null) {
+            if (vel != null) {
                 turret.trackTarget(currentPose, targetPose, 0);
             } else {
                 double flightTime = 0.6;
@@ -177,7 +177,7 @@ public class RedSideSortedAuto extends OpMode {
                 targetPose.getX() - currentPose.getX(),
                 targetPose.getY() - currentPose.getY()
         );
-        double currentRPM = 12.98196 * distance + 2092.57653;
+        double currentRPM = 12.98196 * distance + 2072.57653;
         double currentHood = (1.07947e-7) * Math.pow(distance, 4)
                 - 0.0000376157 * Math.pow(distance, 3)
                 + 0.00473038  * Math.pow(distance, 2)

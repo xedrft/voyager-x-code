@@ -211,7 +211,7 @@ public class BlueTeleOp extends OpMode {
         }
         lastPose = currentPose;
         lastPoseTimeSec = nowSec;
-        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 400 : 225;
+        OUTTAKE_DELAY_MS = (currentPose.getY() < 25) ? 350 : 225;
 
 
         // Field Reset
@@ -223,7 +223,7 @@ public class BlueTeleOp extends OpMode {
             lockMode.unlockPosition();
         }
 
-        if (gamepad2.yWasPressed() && !colorScanInProgress && !outtakeInProgress && !singleOuttakeInProgress) {
+        if (gamepad1.yWasPressed() && !colorScanInProgress && !outtakeInProgress && !singleOuttakeInProgress) {
             spindexer.startAccurateColorScan();
             colorScanInProgress = spindexer.isAccurateColorScanInProgress();
             if (colorScanInProgress) {
@@ -353,10 +353,10 @@ public class BlueTeleOp extends OpMode {
             }
             spindexer.goToOuttakePosition();
             double spitElapsed = spitTimer.milliseconds();
-            if (spitElapsed > 125 && spitElapsed < 225) {
+            if (spitElapsed > 150 && spitElapsed < 250) {
                 barIntake.spinOuttake();
             }
-            else if (spitElapsed >= 225) {
+            else if (spitElapsed >= 250) {
                 spindexer.setShootIndex(2);
                 barIntake.stop();
             }
@@ -482,7 +482,7 @@ public class BlueTeleOp extends OpMode {
                 shotCount++;
             }
         } else {
-            if (outtakeTimer.milliseconds() > OUTTAKE_DELAY_MS){
+            if (outtakeTimer.milliseconds() > OUTTAKE_DELAY_MS*2){
                 turret.transferOff();
                 spindexer.setColorAtPos('_', spindexer.getShootIndex());
                 singleOuttakeInProgress = false;
