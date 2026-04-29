@@ -63,7 +63,7 @@ public class RedTeleOp extends OpMode {
     private int outtakeAdvanceCount = 0;
     private double lastAdvanceTime = 0;
 
-    private static double AUTOSHOOT_TRIANGLE_MARGIN = 0.0; // inches inset from each triangle edge; increase to shrink valid zone
+    private static double AUTOSHOOT_TRIANGLE_MARGIN = -5.0; // inches inset from each triangle edge; increase to shrink valid zone
     private static double AUTOSHOOT_RPM_TOLERANCE = 150.0; // RPM; shooter must be within this of target to fire
 
     // --- velocity-based RPM compensation ---

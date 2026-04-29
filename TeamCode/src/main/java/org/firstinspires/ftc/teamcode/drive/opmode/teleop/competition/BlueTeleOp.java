@@ -50,7 +50,7 @@ public class BlueTeleOp extends OpMode {
     private boolean singleOuttakeInProgress = false;
     private boolean singleAtPosition = false;
     private static double OUTTAKE_DELAY_MS = 300;
-    private static double AUTOSHOOT_TRIANGLE_MARGIN = 0.0; // inches inset from each triangle edge; increase to shrink valid zone
+    private static double AUTOSHOOT_TRIANGLE_MARGIN = -5.0; // inches inset from each triangle edge; increase to shrink valid zone
     private static double AUTOSHOOT_RPM_TOLERANCE = 150.0; // RPM; shooter must be within this of target to fire
 
     private ElapsedTime spitTimer = new ElapsedTime();

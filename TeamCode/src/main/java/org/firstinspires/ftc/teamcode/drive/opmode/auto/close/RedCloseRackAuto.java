@@ -235,7 +235,7 @@ public class RedCloseRackAuto extends OpMode {
 
             // GateIntake 1
             case 5:
-                follower.followPath(paths.GateIntake, 0.8, true);
+                follower.followPath(paths.GateIntake, true);
                 setState(6);
                 break;
                 
@@ -265,7 +265,7 @@ public class RedCloseRackAuto extends OpMode {
                 
             // GateIntake 2
             case 8:
-                follower.followPath(paths.GateIntake, 0.8, true);
+                follower.followPath(paths.GateIntake, true);
                 setState(9);
                 break;
                 
@@ -295,7 +295,7 @@ public class RedCloseRackAuto extends OpMode {
 
             // GateIntake 3
             case 11:
-                follower.followPath(paths.GateIntake, 0.8, true);
+                follower.followPath(paths.GateIntake, true);
                 setState(12);
                 break;
                 
@@ -407,8 +407,8 @@ public class RedCloseRackAuto extends OpMode {
         public PathChain PickupRack1;
         public PathChain ShootRack1;
         public static Pose shootPose = new Pose(86.000, 74.500);
-        public static Pose gateIntakePose = new Pose(133.5, 61.5);
-        public static double gateIntakeAngle = Math.toRadians(40);
+        public static Pose gateIntakePose = new Pose(131, 60); // new Pose(129.3, 59.70);
+        public static double gateIntakeAngle = Math.toRadians(30); // Math.toRadians(30)
 
         public Paths(Follower follower) {
             PresetShoot = follower.pathBuilder().addPath(
@@ -436,10 +436,10 @@ public class RedCloseRackAuto extends OpMode {
             GateIntake = follower.pathBuilder().addPath(
                 new BezierCurve(
                     shootPose,
-                    new Pose(110.717, 46.984),
+                    new Pose(110.717, 55.984),
                     gateIntakePose
                 )
-            ).setTangentHeadingInterpolation().build();
+            ).setLinearHeadingInterpolation(0, gateIntakeAngle).build();
 
             ShootGateIntake = follower.pathBuilder().addPath(
                 new BezierLine(
@@ -452,13 +452,13 @@ public class RedCloseRackAuto extends OpMode {
                 new BezierCurve(
                     shootPose,
                     new Pose(98.720, 84.594),
-                    new Pose(126.857, 84.155)
+                    new Pose(127.857, 84.155)
                 )
             ).setLinearHeadingInterpolation(gateIntakeAngle, Math.toRadians(0)).build();
 
             ShootRack1 = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(126.857, 84.155),
+                    new Pose(127.857, 84.155),
                     new Pose(90, 112)
                 )
             ).setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0)).build();

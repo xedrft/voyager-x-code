@@ -407,8 +407,8 @@ public class BlueCloseRackAuto extends OpMode {
         public PathChain PickupRack1;
         public PathChain ShootRack1;
         public static Pose shootPose = new Pose(144 - 86.000, 74.500);
-        public static Pose gateIntakePose = new Pose(144 - 133.5, 61.5);
-        public static double gateIntakeAngle = Math.toRadians(180-40);
+        public static Pose gateIntakePose = new Pose(144-131, 60); // new Pose(129.3, 59.70);
+        public static double gateIntakeAngle = Math.toRadians(180-30); // Math.toRadians(30)
 
         public Paths(Follower follower) {
             PresetShoot = follower.pathBuilder().addPath(
@@ -436,10 +436,10 @@ public class BlueCloseRackAuto extends OpMode {
             GateIntake = follower.pathBuilder().addPath(
                 new BezierCurve(
                     shootPose,
-                    new Pose(144 - 110.717, 46.984),
+                    new Pose(144 - 110.717, 55.984),
                     gateIntakePose
                 )
-            ).setTangentHeadingInterpolation().build();
+            ).setLinearHeadingInterpolation(Math.toRadians(180), gateIntakeAngle).build();
 
             ShootGateIntake = follower.pathBuilder().addPath(
                 new BezierLine(
@@ -452,13 +452,13 @@ public class BlueCloseRackAuto extends OpMode {
                 new BezierCurve(
                     shootPose,
                     new Pose(144 - 98.720, 84.594),
-                    new Pose(144 - 126.857, 84.155)
+                    new Pose(144 - 127.857, 84.155)
                 )
             ).setLinearHeadingInterpolation(gateIntakeAngle, Math.toRadians(180)).build();
 
             ShootRack1 = follower.pathBuilder().addPath(
                 new BezierLine(
-                    new Pose(144 - 126.857, 84.155),
+                    new Pose(144 - 127.857, 84.155),
                     new Pose(144 - 90, 112)
                 )
             ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180)).build();
