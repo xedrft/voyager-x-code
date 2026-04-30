@@ -184,7 +184,7 @@ public class RedSideSortedAuto extends OpMode {
                 - 0.256541    * distance + 5.77716;
 
         double rampUpFactor = 0.3 * distance;
-        currentRPM += shotCount * (100 + rampUpFactor);
+        //currentRPM += shotCount * (100 + rampUpFactor);
         currentHood = turret.clamp(currentHood, 0, 1.0);
 
         turret.setShooterRPM(currentRPM);
