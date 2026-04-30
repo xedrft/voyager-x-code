@@ -232,10 +232,10 @@ public class BlueFarLeave extends OpMode {
 
             Leave = follower.pathBuilder().addPath(
                     new BezierLine(
-                            new Pose(40.000, 9.000),
+                            new Pose(39.000, 9.000),
                             new Pose(25.000, 9.000)
                     )
-            ).setTangentHeadingInterpolation().build();
+            ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180)).build();
         }
     }
 }
