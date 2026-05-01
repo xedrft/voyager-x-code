@@ -20,9 +20,9 @@ import org.firstinspires.ftc.teamcode.shooting.Turret;
 import org.firstinspires.ftc.teamcode.sorting.ColorSensor;
 import org.firstinspires.ftc.teamcode.sorting.Spindexer;
 
-@Autonomous(name = "Blue 18 Ball Auto (Straight)", group = "Autonomous")
+@Autonomous(name = "Blue leave", group = "Autonomous")
 @Configurable
-public class BlueFarLeave extends OpMode {
+public class BlueCloseLeave extends OpMode {
 
     // -------------------- Panels + Pedro --------------------
     private TelemetryManager panelsTelemetry;

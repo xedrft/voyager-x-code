@@ -122,7 +122,7 @@ public class BlueStraightFarAuto extends OpMode {
         intakeFlap.on();
         spindexer.setShootIndex(2);
         barIntake.spinIntake();
-        targetAngle = 289;
+        targetAngle = 288;
     }
 
     @Override
@@ -248,7 +248,7 @@ public class BlueStraightFarAuto extends OpMode {
                 break;
 
             case 7:
-                targetAngle = 289;
+                targetAngle = 288;
                 follower.followPath(paths.PickupStray);
                 setState(8);
                 break;
