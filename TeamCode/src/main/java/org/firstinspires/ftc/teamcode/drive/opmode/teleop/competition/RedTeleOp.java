@@ -268,9 +268,9 @@ public class RedTeleOp extends OpMode {
                 double adjustY = vel.getYComponent() * flightTime;
                 Pose adjustedTarget = new Pose(targetPose.getX() - adjustX, targetPose.getY() - adjustY, targetPose.getHeading());
                 turret.trackTarget(follower.getPose(), adjustedTarget, offset_turret);
-                telemetry.addData("CompAdjustX", adjustX);
-                telemetry.addData("CompAdjustY", adjustY);
-                telemetry.addData("AdjustedTarget", "(" + adjustedTarget.getX() + ", " + adjustedTarget.getY() + ")");
+//                telemetry.addData("CompAdjustX", adjustX);
+//                telemetry.addData("CompAdjustY", adjustY);
+//                telemetry.addData("AdjustedTarget", "(" + adjustedTarget.getX() + ", " + adjustedTarget.getY() + ")");
             }
         } else {
             turret.trackTarget(follower.getPose(), targetPose, offset_turret);
@@ -308,7 +308,7 @@ public class RedTeleOp extends OpMode {
 //        currentRPM += velComp;
 
         if (currentPose.getY() < 25){
-            currentRPM = 17.1 * distance + 1700;
+            currentRPM = 17.1 * distance + 1750;
             currentHood = 0.5;
         }
 
@@ -328,9 +328,9 @@ public class RedTeleOp extends OpMode {
         turret.setHoodPosition(currentHood);
 
 
-        telemetry.addData("Calculated Distance (in)", distance);
-        telemetry.addData("Radial Vel (ips)", radialVelocityIps);
-        //telemetry.addData("RPM Vel Comp", velComp);
+//        telemetry.addData("Calculated Distance (in)", distance);
+//        telemetry.addData("Radial Vel (ips)", radialVelocityIps);
+//        //telemetry.addData("RPM Vel Comp", velComp);
 
         if (!colorScanInProgress && gamepad1.leftStickButtonWasPressed()) {
             startSingleOuttake('P');
@@ -378,17 +378,17 @@ public class RedTeleOp extends OpMode {
         // Spindexer diagnostic telemetry (angle, velocity, adaptive tolerance, output, etc.)
 
         // Telemetry
-        telemetry.addData("Lock Mode Active", isLocked);
-        telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
-        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")");
-        telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
-        telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
-        telemetry.addData("Outtake In Progress", outtakeInProgress);
-        telemetry.addData("Color Scan In Progress", spindexer.isAccurateColorScanInProgress());
-        telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
-        char[] filled = spindexer.getFilled();
-        telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
-        telemetry.update();
+//        telemetry.addData("Lock Mode Active", isLocked);
+//        telemetry.addData("Spindexer Index", spindexer.getIntakeIndex());
+//        telemetry.addData("Robot Pose: ", "(" + follower.getPose().getX() + ", " + follower.getPose().getY() + ", " + follower.getPose().getHeading() + ")");
+//        telemetry.addData("Adaptive Tolerance", String.format(java.util.Locale.US, "%.2f", spindexer.getLastAdaptiveTol()));
+//        telemetry.addData("Turret RPM Error", String.format(java.util.Locale.US, "%.1f", turret.getShooterRPM() - turret.getSetShooterRPM()));
+//        telemetry.addData("Outtake In Progress", outtakeInProgress);
+//        telemetry.addData("Color Scan In Progress", spindexer.isAccurateColorScanInProgress());
+//        telemetry.addData("Loop Time (ms)", String.format(java.util.Locale.US, "%.2f", loopMs));
+//        char[] filled = spindexer.getFilled();
+//        telemetry.addData("Filled Slots", "[" + filled[0] + ", " + filled[1] + ", " + filled[2] + "]");
+//        telemetry.update();
     }
 
     private void startOuttakeRoutine() {

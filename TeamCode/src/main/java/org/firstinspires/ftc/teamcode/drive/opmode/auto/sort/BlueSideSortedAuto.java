@@ -197,12 +197,12 @@ public class BlueSideSortedAuto extends OpMode {
             }
             spindexer.goToOuttakePosition();
             double spitElapsed = spitTimer.milliseconds();
-            if (spitElapsed > 200 && spitElapsed < 300) {
+            if (spitElapsed > 125 && spitElapsed < 225) {
                 barIntake.spinOuttake();
             }
-            else if (spitElapsed >= 300) {
-                if (order != null) spindexer.goToOuttakePosition(order[currentOrderIndex]);
-                else spindexer.goToOuttakePosition();
+            else if (spitElapsed >= 225) {
+                if (order != null) spindexer.setShootIndex(order[currentOrderIndex]);
+                else spindexer.setShootIndex(2);
                 barIntake.stop();
             }
             else {
